@@ -112,7 +112,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v18'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v19'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -139,7 +139,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const usdOf = cdf => cdf / db.rate;
   const both = cdf => `${fmt(cdf)} <small>≈ ${fmt(usdOf(cdf), 'USD')}</small>`;
 
-  const st = { tab: 'home', sper: 'day', sq: '', tfid: 'J', tn: 50, per: 'day', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7) };
+  const st = { tab: 'home', src: 'app', sper: 'day', sq: '', tfid: 'J', tn: 50, per: 'day', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7) };
   const range = per => { const t = today(); if (per === 'day') return [t, t]; if (per === 'week') return [addDays(t, -6), t]; return [t.slice(0, 7) + '-01', t]; };
   const inR = (d, r) => d >= r[0] && d <= r[1];
   const saleCDF = s => s.amount, expCDF = e => toCDF(e.amount, e.cur, e.rate);
@@ -176,6 +176,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
       ${stale && (db.sales.length || db.expenses.length) ? `<div class="card warn" data-a="goset" style="cursor:pointer">⚠ Pas de sauvegarde récente. Touchez ici pour sauvegarder vos données.</div>` : ''}
       <button class="btn full" data-a="tab" data-v="tix" style="margin:0 0 12px">🎟 Générer des tickets <small style="font-weight:400">(stock : ${db.tickets.filter(t => t.status === 'stock' && lotImported(t.lot)).length})</small></button>
       ${dupBanner()}${pendBanner()}
+      ${lowPaper().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">🖨️ Stock de tickets papier bas : ${lowPaper().map(f => `${esc(f.nom)} (${paperOf(f.id).length})`).join(', ')}.</div>` : ''}
       ${lowStock().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">🎟 Stock de tickets bas : ${lowStock().map(f => `${esc(f.nom)} (${stockOf(f.id).length})`).join(', ')}. Touchez ici pour générer un lot.</div>` : ''}
       ${chips('per', st.per, [['day', "Aujourd'hui"], ['week', '7 jours'], ['month', 'Ce mois']])}
       <div class="grid"><div class="stat"><small>Ventes</small><b class="ok">${fmt(inc)}</b><small>${tickets} ticket(s)</small></div><div class="stat"><small>Dépenses</small><b class="bad">${fmt(out)}</b><small>${E.length} dépense(s)</small></div></div>
@@ -189,38 +190,44 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   // a lot only counts as sellable stock once it has been imported into the router (older lots without the flag count as imported)
   const lotImported = id => { const l = db.lots.find(x => x.id === id); return !l || l.imported !== false; };
-  const stockOf = fid => db.tickets.filter(t => t.fid === fid && t.status === 'stock' && lotImported(t.lot));
+  // two separate stocks: tickets the app hands out ('app') and tickets printed on paper ('paper'); the app never gives out a paper code
+  const lotDest = id => { const l = db.lots.find(x => x.id === id); return l && l.dest === 'paper' ? 'paper' : 'app'; };
+  const stockOf = fid => db.tickets.filter(t => t.fid === fid && t.status === 'stock' && lotImported(t.lot) && lotDest(t.lot) === 'app');
+  const paperOf = fid => db.tickets.filter(t => t.fid === fid && t.status === 'stock' && lotImported(t.lot) && lotDest(t.lot) === 'paper');
   const pendingLots = () => db.lots.filter(l => l.imported === false);
   const pendingOf = fid => db.tickets.filter(t => t.fid === fid && t.status === 'stock' && !lotImported(t.lot)).length;
-  const hasLots = fid => db.lots.some(l => l.fid === fid);
+  const hasLots = fid => db.lots.some(l => l.fid === fid && l.dest !== 'paper');
+  const hasPaper = fid => db.lots.some(l => l.fid === fid && l.dest === 'paper');
   const newCode = prefix => { const b = crypto.getRandomValues(new Uint8Array(5)); return prefix + [...b].map(x => ALPHA[x % ALPHA.length]).join(''); };
-  const genLot = (f, n) => {
+  const genLot = (f, n, dest) => {
     const taken = new Set([...db.tickets.map(t => t.code), ...db.sales.flatMap(x => String(x.ref || '').split(' '))]), codes = [];
     while (codes.length < n) { const c = newCode(f.letter || 'X'); if (!taken.has(c)) { taken.add(c); codes.push(c); } }
     const lot = { id: 'L' + Date.now().toString(36), ts: Date.now(), fid: f.id, n, codes };
-    const t0 = Date.now(); db.lots.push({ id: lot.id, ts: lot.ts, fid: f.id, n, imported: false });
+    const t0 = Date.now(); db.lots.push({ id: lot.id, ts: lot.ts, fid: f.id, n, imported: false, dest: dest === 'paper' ? 'paper' : 'app' });
     codes.forEach((code, i) => db.tickets.push({ id: code, code, ts: t0 + i, fid: f.id, lot: lot.id, status: 'stock' }));
     save(); return lot;
   };
   const lotCodes = lotId => db.tickets.filter(t => t.lot === lotId).sort((a, b) => a.ts - b.ts);
   const rscOf = (f, lot) => ['# Lot ' + lot.id + ' - ' + f.nom + ' - ' + lotCodes(lot.id).length + ' tickets', ...lotCodes(lot.id).map(t => `/ip hotspot user add name=${t.code} password=${t.code} profile=${f.profil} server=${db.server}`)].join('\n') + '\n';
   const printLot = (f, lot) => { $('planche').innerHTML = lotCodes(lot.id).map(t => `<div class="tk">${esc(db.name)}<b>${esc(t.code)}</b>${esc(f.nom)} · ${esc(f.duree)} · ${fmt(f.prix)}<small>Connectez-vous au WiFi puis saisissez ce code</small></div>`).join(''); document.body.classList.add('imprime'); window.print(); document.body.classList.remove('imprime'); };
+  const lowPaper = () => db.forfaits.filter(f => hasPaper(f.id) && paperOf(f.id).length < (db.seuil || 0));
   const lowStock = () => db.forfaits.filter(f => hasLots(f.id) && stockOf(f.id).length < (db.seuil || 0));
   // a code sold twice (two phones sold the same ticket while offline): the later sale gets another ticket
   const dupSales = () => { const seen = new Set(), out = []; db.sales.slice().sort((a, b) => a.ts - b.ts).forEach(x => (x.codes || []).forEach(c => { if (seen.has(c)) out.push({ sale: x, code: c }); else seen.add(c); })); return out; };
   const pendBanner = () => pendingLots().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">📥 ${pendingLots().length} lot(s) de tickets pas encore importé(s) dans le routeur (${pendingLots().map(l => esc((db.forfaits.find(x => x.id === l.fid) || { nom: '?' }).nom) + ' × ' + l.n).join(', ')}). Ces codes ne sont pas vendus tant que vous n'avez pas coché « Importé ».</div>` : '';
   const dupBanner = () => dupSales().length ? `<div class="card warn" data-a="fixdup" style="cursor:pointer">⚠ ${dupSales().length} code(s) vendu(s) deux fois (${dupSales().map(d => esc(d.code)).join(', ')}). Touchez ici pour donner un autre code au second client.</div>` : '';
   views.tix = () => {
-    if (!isMgr()) return { title: 'Tickets', sub: 'Stock disponible', html: `<div class="card">${db.forfaits.map(x => { const n = stockOf(x.id).length, low = hasLots(x.id) && n < (db.seuil || 0); return `<div class="row"><div class="g"><b><span class="badge" style="background:${fcol(x)}">${esc(x.letter)}</span> ${esc(x.nom)}</b><small>${esc(x.duree)}</small></div><b class="${low ? 'bad' : n ? 'ok' : ''}">${n} ticket(s)${low ? ' ⚠' : ''}</b></div>`; }).join('')}</div><p class="mut">Seul le gérant génère et supprime les lots.</p>` };
+    if (!isMgr()) return { title: 'Tickets', sub: 'Stock disponible', html: `<div class="card">${db.forfaits.map(x => { const n = stockOf(x.id).length, low = hasLots(x.id) && n < (db.seuil || 0); return `<div class="row"><div class="g"><b><span class="badge" style="background:${fcol(x)}">${esc(x.letter)}</span> ${esc(x.nom)}</b><small>${esc(x.duree)}${hasPaper(x.id) ? ` · 🖨️ papier : ${paperOf(x.id).length}` : ''}</small></div><b class="${low ? 'bad' : n ? 'ok' : ''}">${n} ticket(s)${low ? ' ⚠' : ''}</b></div>`; }).join('')}</div><p class="mut">Seul le gérant génère et supprime les lots.</p>` };
     const f = db.forfaits.find(x => x.id === st.tfid) || db.forfaits[0], lots = db.lots.slice().sort((a, b) => b.ts - a.ts).slice(0, 12);
     return { title: 'Tickets', sub: 'Stock de codes WiFi', html: `
       ${dupBanner()}${pendBanner()}
       <h2>🎟 Générer des tickets</h2><div class="card"><label>Forfait</label><select id="t_f">${db.forfaits.map(x => `<option value="${esc(x.id)}" ${x.id === f.id ? 'selected' : ''}>${esc(x.nom)} (${esc(x.duree)})</option>`).join('')}</select>
+        <label>Destination des tickets</label><select id="t_dest"><option value="app" ${st.tdest !== 'paper' ? 'selected' : ''}>📱 Vente dans l'application (le code s'affiche au client)</option><option value="paper" ${st.tdest === 'paper' ? 'selected' : ''}>🖨️ Tickets papier (à imprimer et vendre à la main)</option></select>
         <label>Nombre de tickets (1 à 300)</label><input id="t_n" type="number" inputmode="numeric" min="1" max="300" value="${st.tn}">
         <button class="btn full" data-a="genlot">🎟 Générer le lot</button>
         <p class="mut" style="margin-bottom:0">Après la génération : téléchargez le fichier <b>.rsc</b>, importez-le dans le routeur (Winbox → Files → glisser le fichier → New Terminal : <code>/import file-name=…</code>), puis imprimez les tickets.</p></div>
-      <h2>Stock</h2><div class="card">${db.forfaits.map(x => { const n = stockOf(x.id).length, low = hasLots(x.id) && n < (db.seuil || 0); return `<div class="row"><div class="g"><b><span class="badge" style="background:${fcol(x)}">${esc(x.letter)}</span> ${esc(x.nom)}</b><small>${esc(x.duree)} · profil ${esc(x.profil || '—')}</small></div><b class="${low ? 'bad' : n ? 'ok' : ''}">${n} ticket(s)${low ? ' ⚠' : ''}${pendingOf(x.id) ? `<small style="font-weight:400" class="warn">+ ${pendingOf(x.id)} à importer</small>` : ''}</b></div>`; }).join('')}</div>
-      <h2>Derniers lots</h2><div class="card">${lots.length ? lots.map(l => { const lf = db.forfaits.find(x => x.id === l.fid) || { nom: 'Forfait supprimé', letter: '?' }, tk = lotCodes(l.id), left = tk.filter(t => t.status === 'stock').length; return `<div class="row" style="flex-wrap:wrap"><div class="g"><b>${esc(lf.nom)} × ${l.n}</b><small>${new Date(l.ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · ${left} restant(s), ${tk.length - left} vendu(s)</small><label style="display:flex;gap:8px;align-items:center;margin-top:6px;color:${l.imported === false ? 'var(--warn)' : 'var(--ok)'}"><input type="checkbox" style="width:auto;margin:0" data-a="lotimp" data-v="${l.id}" ${l.imported === false ? '' : 'checked'}> ${l.imported === false ? 'À importer dans le routeur' : 'Importé dans le routeur'}</label></div><div class="bar" style="margin:0"><button class="btn sm sec" data-a="lotrsc" data-v="${l.id}">⬇ .rsc</button><button class="btn sm sec" data-a="lotprint" data-v="${l.id}">🖨️</button><button class="btn sm sec" data-a="lotcsv" data-v="${l.id}">CSV</button><button class="btn sm sec" data-a="lotdel" data-v="${l.id}" title="Supprimer ce lot" ${tk.length - left ? 'disabled style="opacity:.4"' : ''}>🗑</button></div></div>`; }).join('') : '<div class="empty">Aucun lot généré.</div>'}</div>` };
+      <h2>Stock</h2><div class="card">${db.forfaits.map(x => { const n = stockOf(x.id).length, low = hasLots(x.id) && n < (db.seuil || 0); return `<div class="row"><div class="g"><b><span class="badge" style="background:${fcol(x)}">${esc(x.letter)}</span> ${esc(x.nom)}</b><small>${esc(x.duree)} · profil ${esc(x.profil || '—')}${hasPaper(x.id) ? ` · 🖨️ papier : <b>${paperOf(x.id).length}</b>` : ''}</small></div><b class="${low ? 'bad' : n ? 'ok' : ''}">${n} ticket(s)${low ? ' ⚠' : ''}${pendingOf(x.id) ? `<small style="font-weight:400" class="warn">+ ${pendingOf(x.id)} à importer</small>` : ''}</b></div>`; }).join('')}</div>
+      <h2>Derniers lots</h2><div class="card">${lots.length ? lots.map(l => { const lf = db.forfaits.find(x => x.id === l.fid) || { nom: 'Forfait supprimé', letter: '?' }, tk = lotCodes(l.id), left = tk.filter(t => t.status === 'stock').length; return `<div class="row" style="flex-wrap:wrap"><div class="g"><b>${esc(lf.nom)} × ${l.n} <span class="mut">${l.dest === 'paper' ? '🖨️ papier' : '📱 application'}</span></b><small>${new Date(l.ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · ${left} restant(s), ${tk.length - left} vendu(s)</small><label style="display:flex;gap:8px;align-items:center;margin-top:6px;color:${l.imported === false ? 'var(--warn)' : 'var(--ok)'}"><input type="checkbox" style="width:auto;margin:0" data-a="lotimp" data-v="${l.id}" ${l.imported === false ? '' : 'checked'}> ${l.imported === false ? 'À importer dans le routeur' : 'Importé dans le routeur'}</label></div><div class="bar" style="margin:0"><button class="btn sm sec" data-a="lotrsc" data-v="${l.id}">⬇ .rsc</button>${l.dest === 'paper' ? `<button class="btn sm sec" data-a="lotprint" data-v="${l.id}">🖨️</button>` : ''}<button class="btn sm sec" data-a="lotcsv" data-v="${l.id}">CSV</button><button class="btn sm sec" data-a="lotdel" data-v="${l.id}" title="Supprimer ce lot" ${tk.length - left ? 'disabled style="opacity:.4"' : ''}>🗑</button></div></div>`; }).join('') : '<div class="empty">Aucun lot généré.</div>'}</div>` };
   };
   // codes shown after a sale, to give to the client
   const showCodes = (f, codes) => {
@@ -233,12 +240,15 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     return { title: 'Vendre', sub: fdate(today()), html: `
       <div class="fo">${db.forfaits.map(x => `<button class="${st.fid === x.id ? 'on' : ''}" style="--c:${fcol(x)}" data-a="fid" data-v="${esc(x.id)}">${esc(x.nom)}<small>${esc(x.duree)} · ${fmt(x.prix)}</small></button>`).join('')}</div>
       ${pendBanner()}
-      ${f && hasLots(f.id) ? `<div class="card ${stockOf(f.id).length < (db.seuil || 0) ? 'warn' : ''}">🎟 En stock : <b>${stockOf(f.id).length}</b> ticket(s) ${esc(f.nom)} <button class="btn sm sec" data-a="tab" data-v="tix" style="float:right">Gérer</button></div>` : `<button class="btn sec sm" data-a="tab" data-v="tix" style="margin-bottom:10px">🎟 Tickets (stock, génération, impression)</button>`}
+      ${chips('src', st.src, [['app', "📱 Ticket de l'application"], ['paper', '🖨️ Ticket papier']])}
+      ${st.src === 'paper' ? (f && hasPaper(f.id) ? `<div class="card ${paperOf(f.id).length < (db.seuil || 0) ? 'warn' : ''}">🖨️ Tickets papier en stock : <b>${paperOf(f.id).length}</b> ${esc(f.nom)} <button class="btn sm sec" data-a="tab" data-v="tix" style="float:right">Gérer</button></div>` : '<p class="mut" style="margin:0 0 10px">Vente d\'un ticket papier : le montant est compté, aucun code n\'est affiché.</p>')
+        : (f && hasLots(f.id) ? `<div class="card ${stockOf(f.id).length < (db.seuil || 0) ? 'warn' : ''}">🎟 En stock : <b>${stockOf(f.id).length}</b> ticket(s) ${esc(f.nom)} <button class="btn sm sec" data-a="tab" data-v="tix" style="float:right">Gérer</button></div>` : `<button class="btn sec sm" data-a="tab" data-v="tix" style="margin-bottom:10px">🎟 Tickets (stock, génération, impression)</button>`)}
       <div class="card"><div class="qty"><button data-a="qty" data-v="-1">−</button><b>${st.qty}</b><button data-a="qty" data-v="1">+</button><span class="mut">ticket(s)</span></div>
+        ${st.src === 'paper' && st.qty === 1 && f && hasPaper(f.id) ? '<label>Code du ticket papier (facultatif)</label><input id="pcode" autocomplete="off" autocapitalize="characters" placeholder="Ex. J3K9PM" style="text-transform:uppercase;letter-spacing:2px">' : ''}
         ${chips('mode', st.mode, MODES.map(m => [m, m]))}
         <div class="mut">Total à encaisser</div><div class="total">${fmt(t)}</div>
         <button class="btn full" data-a="sell" ${f ? '' : 'disabled style="opacity:.5"'}>✔ Enregistrer la vente</button></div>
-      <h2>Ventes d'aujourd'hui (${list.length}) ${isMgr() ? '<a data-a="tab" data-v="sales" style="float:right;text-transform:none;letter-spacing:0;color:var(--acc);cursor:pointer">Toutes les ventes ›</a>' : ''}</h2><div class="card">${list.length ? list.map(s => `<div class="row"><div class="g"><b>${s.qty} × ${esc(fname(s.fid))}</b><small>${esc(s.mode)}${s.by ? ' · ' + esc(s.by) : ''}${s.ref ? ' · code ' + esc(s.ref) : ''}${s.note ? ' · ' + esc(s.note) : ''}</small></div><b>${fmt(s.amount)}</b>${isMgr() ? `<button class="btn sm sec" data-a="delsale" data-v="${s.id}">✕</button>` : ''}</div>`).join('') : '<div class="empty">Aucune vente pour le moment.</div>'}</div>` };
+      <h2>Ventes d'aujourd'hui (${list.length}) ${isMgr() ? '<a data-a="tab" data-v="sales" style="float:right;text-transform:none;letter-spacing:0;color:var(--acc);cursor:pointer">Toutes les ventes ›</a>' : ''}</h2><div class="card">${list.length ? list.map(s => `<div class="row"><div class="g"><b>${s.qty} × ${esc(fname(s.fid))}</b><small>${s.paper ? '🖨️ papier · ' : ''}${esc(s.mode)}${s.by ? ' · ' + esc(s.by) : ''}${s.ref ? ' · code ' + esc(s.ref) : ''}${s.note ? ' · ' + esc(s.note) : ''}</small></div><b>${fmt(s.amount)}</b>${isMgr() ? `<button class="btn sm sec" data-a="delsale" data-v="${s.id}">✕</button>` : ''}</div>`).join('') : '<div class="empty">Aucune vente pour le moment.</div>'}</div>` };
   };
   views.exp = () => {
     const r = range(st.per), E = db.expenses.filter(e => inR(e.date, r)).sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts);
@@ -292,7 +302,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const hhmm = ts => new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const salesFiltered = () => { const r = st.sper === 'all' ? ['0000-00-00', '9999-99-99'] : range(st.sper), q = st.sq.trim().toLowerCase();
     return db.sales.filter(x => inR(x.date, r) && (!q || [x.ref, fname(x.fid), x.mode, x.note, x.by, x.date, fdate(x.date)].join(' ').toLowerCase().includes(q))).sort((a, b) => b.ts - a.ts); };
-  const saleRows = l => l.length ? l.map(x => `<div class="row"><div class="g"><b>${x.qty} × ${esc(fname(x.fid))}${x.ref ? ` · <span style="font-family:monospace">${esc(x.ref)}</span>` : ''}</b><small>${fdate(x.date)} à ${hhmm(x.ts)} · ${esc(x.mode)}${x.by ? ' · ' + esc(x.by) : ''}${x.note ? ' · ' + esc(x.note) : ''}</small></div><b>${fmt(x.amount)}</b><button class="btn sm sec" data-a="delsale" data-v="${x.id}">✕</button></div>`).join('') : '<div class="empty">Aucune vente trouvée.</div>';
+  const saleRows = l => l.length ? l.map(x => `<div class="row"><div class="g"><b>${x.qty} × ${esc(fname(x.fid))}${x.ref ? ` · <span style="font-family:monospace">${esc(x.ref)}</span>` : ''}</b><small>${fdate(x.date)} à ${hhmm(x.ts)} · ${x.paper ? '🖨️ papier · ' : ''}${esc(x.mode)}${x.by ? ' · ' + esc(x.by) : ''}${x.note ? ' · ' + esc(x.note) : ''}</small></div><b>${fmt(x.amount)}</b><button class="btn sm sec" data-a="delsale" data-v="${x.id}">✕</button></div>`).join('') : '<div class="empty">Aucune vente trouvée.</div>';
   const salesTot = l => `${l.length} vente(s) · ${sum(l, x => x.qty)} ticket(s) · ${fmt(sum(l, saleCDF))}`;
   views.sales = () => { const l = salesFiltered(); return { title: 'Toutes les ventes', sub: 'Avec heure et code du ticket', html: `
     <button class="btn sec sm noprint" data-a="tab" data-v="rep" style="margin-bottom:10px">‹ Retour au rapport</button>
@@ -492,7 +502,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   // Sign-in is by PIN only: the code itself selects the profile (so every PIN is unique). Profiles + PIN hashes sync between devices.
   // Roles are enforced in this app (they stop casual misuse, not someone who knows the sync passphrase).
   let me = null;
-  const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix'], SELLER_ACTS = new Set(['tab', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn']);
+  const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix'], SELLER_ACTS = new Set(['tab', 'src', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn']);
   const MAXG = 2; // the first two profiles are gérants, every profile added after them is a vendeur
   const profilesOn = () => db.users.length > 0;
   const gerants = () => db.users.filter(u => u.role === 'gerant');
@@ -600,13 +610,21 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const A = {
     tab: v => { st.tab = v; draw(); window.scrollTo(0, 0); }, per: v => { st.per = v; draw(); }, goset: () => A.tab('set'),
     fid: v => { st.fid = v; draw(); }, qty: v => { st.qty = Math.max(1, st.qty + +v); draw(); }, mode: v => { st.mode = v; draw(); },
+    src: v => { st.src = v === 'paper' ? 'paper' : 'app'; draw(); },
     sell: () => { const f = db.forfaits.find(x => x.id === st.fid); if (!f) return;
+      if (st.src === 'paper') { // a paper ticket: the money is counted, no code is shown; with a code, that exact ticket leaves the paper stock
+        const code = ($('pcode') ? $('pcode').value : '').trim().toUpperCase(), avail = paperOf(f.id).sort((a, b) => a.ts - b.ts); let take = [];
+        if (code) { const tk = avail.find(t => t.code === code); if (!tk) return toast('Ce code n\'est pas un ticket papier en stock pour ce forfait (déjà vendu, inconnu, ou ticket de l\'application)'); take = [tk]; }
+        else if (hasPaper(f.id)) { take = avail.slice(0, st.qty); if (take.length < st.qty && !confirm(`Il ne reste que ${take.length} ticket(s) papier ${f.nom} en stock pour ${st.qty} demandé(s). Vendre quand même ?`)) return; }
+        const id = uid(); db.sales.push({ id, ts: Date.now(), date: today(), fid: f.id, qty: st.qty, amount: f.prix * st.qty, mode: st.mode, ref: code, codes: code ? [code] : [], anonCodes: code ? [] : take.map(t => t.code), paper: true, note: '', by: me ? me.name : '' });
+        take.forEach(t => { t.status = 'sold'; t.saleId = id; t.soldAt = Date.now(); });
+        save(); toast(`Vente papier enregistrée : ${fmt(f.prix * st.qty)}`); st.qty = 1; return draw(); }
       const avail = stockOf(f.id).sort(() => Math.random() - .5), take = avail.slice(0, st.qty); // random pick: two phones selling offline rarely take the same code
       if (hasLots(f.id) && take.length < st.qty && !confirm(`Il ne reste que ${take.length} ticket(s) ${f.nom} en stock pour ${st.qty} demandé(s). Vendre quand même, sans code pour les autres ?`)) return;
       const id = uid(); db.sales.push({ id, ts: Date.now(), date: today(), fid: f.id, qty: st.qty, amount: f.prix * st.qty, mode: st.mode, ref: take.map(t => t.code).join(' '), codes: take.map(t => t.code), note: '', by: me ? me.name : '' });
       take.forEach(t => { t.status = 'sold'; t.saleId = id; t.soldAt = Date.now(); });
       save(); toast(`Vente enregistrée : ${fmt(f.prix * st.qty)}`); st.qty = 1; draw(); if (take.length) showCodes(f, take.map(t => t.code)); },
-    delsale: v => { const s = db.sales.find(x => x.id === v); if (s && confirm(`Supprimer cette vente de ${fmt(s.amount)} ?${(s.codes || []).length ? ' Les codes ' + s.codes.join(', ') + ' retournent en stock.' : ''}`)) { (s.codes || []).forEach(c => { const t = db.tickets.find(x => x.code === c); if (t) { t.status = 'stock'; delete t.saleId; delete t.soldAt; } }); db.sales = db.sales.filter(x => x !== s); save(); draw(); } },
+    delsale: v => { const s = db.sales.find(x => x.id === v); if (s && confirm(`Supprimer cette vente de ${fmt(s.amount)} ?${(s.codes || []).length ? ' Les codes ' + s.codes.join(', ') + ' retournent en stock.' : ''}`)) { (s.codes || []).concat(s.anonCodes || []).forEach(c => { const t = db.tickets.find(x => x.code === c); if (t) { t.status = 'stock'; delete t.saleId; delete t.soldAt; } }); db.sales = db.sales.filter(x => x !== s); save(); draw(); } },
     newexp: () => modal('Nouvelle dépense', `<label>Libellé</label><input id="e_label" placeholder="Ex. Recharge Starlink"><label>Catégorie</label><select id="e_cat">${CATS.map(c => `<option>${esc(c)}</option>`).join('')}</select>
       <div style="display:flex;gap:8px"><div style="flex:2"><label>Montant</label><input id="e_amt" type="number" inputmode="decimal" min="0"></div><div style="flex:1"><label>Devise</label><select id="e_cur"><option>CDF</option><option>USD</option></select></div></div>
       <label>Payé par</label><select id="e_mode">${MODES.map(m => `<option>${esc(m)}</option>`).join('')}</select><label>Date</label><input id="e_date" type="date" value="${today()}" max="${today()}">`, () => {
@@ -623,7 +641,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     mwa: () => share(monthText(monthData(st.rm))),
     sper: v => { st.sper = v; draw(); },
     salescsv: () => { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`, l = salesFiltered().slice().reverse();
-      download(`wifizone-ventes-${st.sper}-${today()}.csv`, '\ufeff' + [['Date', 'Heure', 'Forfait', 'Quantité', 'Code', 'Mode', 'Vendeur', 'Montant FC', 'Note'], ...l.map(x => [x.date, hhmm(x.ts), fname(x.fid), x.qty, x.ref || '', x.mode, x.by || '', x.amount, x.note || ''])].map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
+      download(`wifizone-ventes-${st.sper}-${today()}.csv`, '\ufeff' + [['Date', 'Heure', 'Forfait', 'Quantité', 'Code', 'Support', 'Mode', 'Vendeur', 'Montant FC', 'Note'], ...l.map(x => [x.date, hhmm(x.ts), fname(x.fid), x.qty, x.ref || '', x.paper ? 'Papier' : 'Application', x.mode, x.by || '', x.amount, x.note || ''])].map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
     csv: () => { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`, x = monthData(st.rm), rows = [['Date', 'Heure', 'Type', 'Libellé', 'Code', 'Mode', 'Devise', 'Montant', 'Équivalent FC'],
       ...x.S.map(s => [s.date, hhmm(s.ts), 'Vente', `${s.qty} × ${fname(s.fid)}`, s.ref || '', s.mode, 'CDF', s.amount, s.amount]), ...x.E.map(e => [e.date, hhmm(e.ts || 0), 'Dépense', e.label || e.cat, '', e.mode, e.cur, -e.amount, -expCDF(e)])].sort((a, b) => a[0].localeCompare(b[0]));
       download(`wifizone-${st.rm}.csv`, '﻿' + rows.map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
@@ -636,14 +654,14 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
       save(); draw(); if (!done.length) return toast('Plus de ticket en stock : générez un lot');
       modal('Nouveaux codes à donner', `<p class="mut" style="margin-top:0">Ces clients avaient reçu un code déjà vendu. Donnez-leur le nouveau code :</p>${done.map(x => `<div class="row"><div class="g"><small>${esc(x.f.nom)} · remplace ${esc(x.old)}</small></div><b style="font-family:monospace;font-size:20px">${esc(x.code)}</b></div>`).join('')}`); },
     genlot: () => { const f = db.forfaits.find(x => x.id === $('t_f').value), n = Math.min(300, Math.max(1, parseInt($('t_n').value, 10) || 0)); if (!f) return;
-      if (!f.profil) return toast('Renseignez d\'abord le profil MikroTik de ce forfait (Réglages → ✎)'); st.tfid = f.id; st.tn = n;
-      const lot = genLot(f, n); draw(); download(`tickets-${f.nom}-${lot.id}.rsc`, rscOf(f, lot), 'text/plain;charset=utf-8'); toast(`${n} tickets ${f.nom} générés : importez le fichier .rsc dans le routeur`); },
+      if (!f.profil) return toast('Renseignez d\'abord le profil MikroTik de ce forfait (Réglages → ✎)'); st.tfid = f.id; st.tn = n; st.tdest = $('t_dest').value === 'paper' ? 'paper' : 'app';
+      const lot = genLot(f, n, st.tdest); draw(); download(`tickets-${f.nom}-${lot.id}.rsc`, rscOf(f, lot), 'text/plain;charset=utf-8'); toast(`${n} tickets ${st.tdest === 'paper' ? 'papier ' : ''}${f.nom} générés : importez le fichier .rsc dans le routeur${st.tdest === 'paper' ? ', puis imprimez-les' : ''}`); },
     lotimp: v => { const l = db.lots.find(x => x.id === v); if (!l) return;
       if (l.imported === false) { l.imported = true; l.importedAt = Date.now(); save(); draw(); return toast('Lot importé : ses tickets sont maintenant en vente'); }
       if (db.tickets.some(t => t.lot === l.id && t.status === 'sold')) { draw(); return toast('Des tickets de ce lot sont déjà vendus : on ne peut plus le repasser « à importer »'); }
       l.imported = false; delete l.importedAt; save(); draw(); },
     lotrsc: v => { const l = db.lots.find(x => x.id === v), f = l && db.forfaits.find(x => x.id === l.fid); if (f) download(`tickets-${f.nom}-${l.id}.rsc`, rscOf(f, l), 'text/plain;charset=utf-8'); },
-    lotprint: v => { const l = db.lots.find(x => x.id === v), f = l && db.forfaits.find(x => x.id === l.fid); if (f) printLot(f, l); },
+    lotprint: v => { const l = db.lots.find(x => x.id === v), f = l && db.forfaits.find(x => x.id === l.fid); if (!f) return; if (l.dest !== 'paper') return toast('Les tickets de l\'application ne s\'impriment pas : générez un lot « papier »'); printLot(f, l); },
     // delete a lot nothing was sold from; if it was imported into the router, a cleanup .rsc removes its codes there too
     lotdel: v => { const l = db.lots.find(x => x.id === v); if (!l) return; const f = db.forfaits.find(x => x.id === l.fid) || { nom: 'forfait' }, tk = lotCodes(l.id);
       if (tk.some(t => t.status === 'sold')) return toast(`Impossible : ${tk.filter(t => t.status === 'sold').length} ticket(s) de ce lot sont déjà vendus`);
