@@ -111,7 +111,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v15'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v16'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -451,7 +451,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     const L = lockState;
     lockEl.innerHTML = `<h2>${esc(L.title)}</h2><p id="lmsg">${esc(msg || '')}</p><div class="dots">${Array.from({ length: L.len }, (_, i) => `<i class="${i < L.buf.length ? 'f' : ''}"></i>`).join('')}</div>
       <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="x" style="font-size:16px">${L.cancel ? 'Annuler' : ''}</button><button data-k="0">0</button><button data-k="d">⌫</button></div>
-      ${L.mode === 'unlock' || (L.mode === 'profile' && L.role === 'gerant') ? '<button class="lnk" data-k="forgot">Code oublié ?</button>' : L.mode === 'profile' ? '<p style="opacity:.8;font-size:13px;margin-top:16px">Code oublié ? Demandez au gérant de le changer (Réglages → Profils).</p>' : ''}`;
+      ${L.mode === 'unlock' ? '<button class="lnk" data-k="forgot">Code oublié ?</button>' : L.mode === 'profile' ? '<p style="opacity:.8;font-size:13px;margin-top:16px;max-width:300px">Code oublié ? Un gérant peut le changer (Réglages → Profils).</p>' : ''}`;
     lockEl.classList.add('on');
   };
   // ask for a PIN: onDone(pin) is called once L.len digits are entered
@@ -471,8 +471,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   lockEl.addEventListener('click', e => {
     const b = e.target.closest('[data-k]'); if (!b) return; const k = b.dataset.k, L = lockState;
     if (k === 'forgot') { if (confirm('Code oublié : la seule solution est d\'effacer les données de cette application sur cet appareil, puis de restaurer votre dernière sauvegarde (Réglages → Restaurer). Effacer maintenant ?')) { try { localStorage.removeItem(KEY); } catch (x) {} location.reload(); } return; }
-    if (k.startsWith('u:')) return loginAs(k.slice(2));
-    if (k === 'w:new') return userForm(null, true);
+    if (k === 'w:new') return userForm(null, 'first', true);
     if (k === 'w:join') return A.syncsetup();
     if (k === 'x') { if (L.mode === 'profile') return profileLock(); if (L.cancel) { lockEl.classList.remove('on'); lockEl.innerHTML = ''; } return; }
     if (k === 'd') L.buf = L.buf.slice(0, -1); else if (L.buf.length < L.len) L.buf += k;
@@ -487,35 +486,36 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     const salt = uid() + uid(); db.pin = { salt, hash: await hashPin(first, salt) }; save(); lockEl.classList.remove('on'); lockEl.innerHTML = ''; draw(); toast('Code PIN enregistré');
   }, { cancel: true, msg: 'Saisissez-le une deuxième fois' }), { cancel: true, msg: '4 chiffres' });
 
-  // ---------- Profiles: gérant (everything) and vendeur (sell only) ----------
-  // Profiles + PIN hashes sync between devices. Roles are enforced in this app (they stop casual misuse, not someone who knows the sync passphrase).
+  // ---------- Profiles: two gérants (everything), then vendeurs (sell only) ----------
+  // Sign-in is by PIN only: the code itself selects the profile (so every PIN is unique). Profiles + PIN hashes sync between devices.
+  // Roles are enforced in this app (they stop casual misuse, not someone who knows the sync passphrase).
   let me = null;
   const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix'], SELLER_ACTS = new Set(['tab', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn']);
+  const MAXG = 2; // the first two profiles are gérants, every profile added after them is a vendeur
   const profilesOn = () => db.users.length > 0;
-  // first start: nothing can be used before the manager's profile exists (unless profiles were switched off on purpose, or this device joins others through sync)
+  const gerants = () => db.users.filter(u => u.role === 'gerant');
+  // first start: nothing can be used before the gérants exist (unless profiles were switched off on purpose, or this device joins others through sync)
   const needsWelcome = () => !profilesOn() && !db.noProfiles;
   const welcomeScreen = () => {
     me = null;
-    lockEl.innerHTML = `<h2>Bienvenue</h2><p style="max-width:330px;line-height:1.5">Avant de commencer, créez le profil du <b>gérant</b> : il a tous les droits et ajoutera ensuite les vendeurs.</p><div class="who"><button data-k="w:new">Créer le profil du gérant<small>Première installation</small></button><button data-k="w:join">Cet appareil rejoint les autres<small>Synchronisation : récupérer les profils existants</small></button></div>`;
+    lockEl.innerHTML = `<h2>Bienvenue</h2><p style="max-width:330px;line-height:1.5">Avant de commencer, créez les <b>deux gérants</b> : ils ont tous les droits. Les personnes ajoutées ensuite seront des <b>vendeurs</b>, et chacun entrera simplement son code PIN.</p><div class="who"><button data-k="w:new">Créer les deux profils gérant<small>Première installation</small></button><button data-k="w:join">Cet appareil rejoint les autres<small>Synchronisation : récupérer les profils existants</small></button></div>`;
     lockEl.classList.add('on'); draw();
   };
   const isMgr = () => !profilesOn() || !!(me && me.role === 'gerant');
   const canView = v => isMgr() || (!!me && SELLER_VIEWS.includes(v));
   const canAct = a => isMgr() || (!!me && SELLER_ACTS.has(a));
+  const findByPin = async (pin, exceptId) => { for (const u of db.users) if (u.id !== exceptId && await hashPin(pin, u.salt) === u.hash) return u; return null; };
+  // sign-in screen: just the PIN pad, the code decides who you are
   const profileLock = () => {
     me = null;
-    lockEl.innerHTML = `<h2>${esc(db.name)}</h2><p>Qui êtes-vous ?</p><div class="who">${db.users.slice().sort((a, b) => a.name.localeCompare(b.name)).map(u => `<button data-k="u:${esc(u.id)}">${esc(u.name)}<small>${ROLES[u.role] || ''}</small></button>`).join('')}</div>`;
-    lockEl.classList.add('on'); draw();
-  };
-  const loginAs = id => {
-    const u = db.users.find(x => x.id === id); if (!u) return profileLock();
-    askPin(u.name, async pin => {
+    askPin(db.name, async pin => {
       if (Date.now() < lockState.until) return drawLock(`Patientez ${Math.ceil((lockState.until - Date.now()) / 1000)} s`);
-      if (await hashPin(pin, u.salt) === u.hash) { lockState.fails = 0; me = u; lockEl.classList.remove('on'); lockEl.innerHTML = ''; if (!canView(st.tab)) st.tab = 'sell'; draw(); return; }
+      const u = await findByPin(pin);
+      if (u) { lockState.fails = 0; me = u; lockEl.classList.remove('on'); lockEl.innerHTML = ''; if (!canView(st.tab)) st.tab = 'sell'; draw(); return; }
       lockState.fails++; lockState.buf = '';
       if (lockState.fails >= 5) { lockState.until = Date.now() + 30000; lockState.fails = 0; drawLock('Trop d\'essais : attendez 30 secondes'); } else drawLock('Code incorrect');
-    }, { mode: 'profile', cancel: true, msg: 'Entrez votre code PIN' });
-    lockState.role = u.role; drawLock('Entrez votre code PIN');
+    }, { mode: 'profile', msg: 'Entrez votre code PIN' });
+    draw();
   };
   // after a sync: a profile list that arrived from another device takes effect here; a changed or deleted profile is re-checked
   const syncProfiles = () => {
@@ -523,29 +523,33 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     if (profilesOn() && !me) return profileLock();
     if (me) { const u = db.users.find(x => x.id === me.id); if (!u) return profileLock(); me = u; if (!canView(st.tab)) st.tab = 'sell'; }
   };
-  const MAXP = 2; // two profiles at most, both gérants
-  const profilesCard = () => `<h2>Profils</h2><div class="card">${profilesOn() ? db.users.map(u => `<div class="row"><div class="g"><b>${esc(u.name)}</b><small>${ROLES[u.role]}</small></div><button class="btn sm sec" data-a="usedit" data-v="${esc(u.id)}">✎</button></div>`).join('') + `<div class="bar">${db.users.length < MAXP ? '<button class="btn sec" data-a="usnew">+ Ajouter le 2ᵉ gérant</button>' : ''}<button class="btn sec" data-a="usoff">Désactiver</button></div><p class="mut" style="margin-bottom:0">${db.users.length < MAXP ? 'Un deuxième gérant peut être ajouté (deux profils au maximum). ' : 'Les deux profils gérant sont créés (maximum atteint). '}Le code PIN d'appareil est remplacé par les profils tant qu'ils sont activés.</p>` : `<p class="mut" style="margin-top:0">Sans profils, toute personne qui ouvre l'application peut tout faire. Avec les profils, chaque <b>gérant</b> (deux au maximum) se connecte avec son nom et son code PIN, et chaque vente porte le nom de celui qui l'a faite.</p><button class="btn full" data-a="uson">Activer les profils</button>`}</div>`;
-  const pinFields = (pre) => `<label>Code PIN (4 chiffres)${pre ? ' — laisser vide pour ne pas le changer' : ''}</label><input id="u_pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"><label>Confirmer le code PIN</label><input id="u_pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="off">`;
-  const userForm = (u, first) => {
-    const mgrs = db.users.filter(x => x.role === 'gerant').length, lastMgr = u && u.role === 'gerant' && mgrs <= 1;
-    modal(first ? 'Premier profil : le gérant' : u ? 'Modifier le profil' : 'Deuxième gérant',
-      `${first ? '<p class="mut" style="margin-top:0">Ce profil a tous les droits. Notez bien son code PIN.</p>' : ''}<label>Nom</label><input id="u_name" value="${esc(u ? u.name : '')}" autocomplete="off">
-       
+  const profilesCard = () => `<h2>Profils</h2><div class="card">${profilesOn() ? db.users.map(u => `<div class="row"><div class="g"><b>${esc(u.name)}</b><small>${ROLES[u.role]}</small></div><button class="btn sm sec" data-a="usedit" data-v="${esc(u.id)}">✎</button></div>`).join('') + `<div class="bar"><button class="btn sec" data-a="usnew">${gerants().length < MAXG ? '+ Ajouter le 2ᵉ gérant' : '+ Ajouter un vendeur'}</button><button class="btn sec" data-a="usoff">Désactiver</button></div><p class="mut" style="margin-bottom:0">${gerants().length < MAXG ? 'Le deuxième profil est un gérant. ' : 'Les deux gérants sont créés : les profils ajoutés sont des <b>vendeurs</b> (vendre seulement). '}Chacun se connecte en saisissant seulement son code PIN, qui doit être différent de ceux des autres.</p>` : `<p class="mut" style="margin-top:0">Sans profils, toute personne qui ouvre l'application peut tout faire. Avec les profils : <b>deux gérants</b> (tous les droits), puis des <b>vendeurs</b> qui ne peuvent que vendre. Chacun entre seulement son code PIN, et chaque vente porte le nom de son auteur.</p><button class="btn full" data-a="uson">Activer les profils</button>`}</div>`;
+  const pinFields = pre => `<label>Code PIN (4 chiffres)${pre ? ' — laisser vide pour ne pas le changer' : ''}</label><input id="u_pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"><label>Confirmer le code PIN</label><input id="u_pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="off">`;
+  // mode: 'first' | 'second' (gérants) | 'vendeur' | undefined (edit); forced = part of the start-up chain, no way to cancel
+  const userForm = (u, mode, forced) => {
+    const lastMgr = !!u && u.role === 'gerant' && gerants().length <= 1, role = u ? u.role : (mode === 'vendeur' ? 'vendeur' : 'gerant');
+    const intro = { first: 'Premier gérant : tous les droits. Notez bien son code PIN.', second: 'Deuxième gérant : mêmes droits. Son code PIN doit être différent du premier.', vendeur: 'Vendeur : il peut vendre des tickets, rien d\'autre. Son code PIN doit être différent de ceux des autres.' }[mode] || '';
+    modal({ first: 'Premier gérant', second: 'Deuxième gérant', vendeur: 'Nouveau vendeur' }[mode] || 'Modifier le profil',
+      `${intro ? `<p class="mut" style="margin-top:0">${intro}</p>` : ''}<label>Nom</label><input id="u_name" value="${esc(u ? u.name : '')}" autocomplete="off">
        ${pinFields(!!u)}${u && !lastMgr ? '<button type="button" class="btn del full" id="u_del">Supprimer ce profil</button>' : ''}<p id="u_msg" class="warn"></p>`, () => {
-      const name = $('u_name').value.trim(), pin = $('u_pin').value, pin2 = $('u_pin2').value, role = 'gerant', msg = $('u_msg');
+      const name = $('u_name').value.trim(), pin = $('u_pin').value, pin2 = $('u_pin2').value, msg = $('u_msg');
       if (!name) { msg.textContent = 'Saisissez un nom'; return false; }
       if (db.users.some(x => x !== u && x.name.toLowerCase() === name.toLowerCase())) { msg.textContent = 'Ce nom existe déjà'; return false; }
       if ((!u || pin) && !/^\d{4}$/.test(pin)) { msg.textContent = 'Le code PIN doit avoir 4 chiffres'; return false; }
       if (pin !== pin2) { msg.textContent = 'Les deux codes sont différents'; return false; }
       (async () => {
+        if (pin && await findByPin(pin, u && u.id)) { msg.textContent = 'Ce code PIN est déjà utilisé par un autre profil : choisissez-en un autre'; return; }
         const rec = u || { id: uid(), ts: Date.now() };
         Object.assign(rec, { name, role }); if (pin) { rec.salt = uid() + uid(); rec.hash = await hashPin(pin, rec.salt); }
-        if (!u) db.users.push(rec); if (first) { me = rec; db.noProfiles = false; lockEl.classList.remove('on'); lockEl.innerHTML = ''; } if (me && me.id === rec.id) me = rec;
-        save(); dlg.close(); draw(); toast(first ? 'Profils activés' : 'Profil enregistré');
+        if (!u) db.users.push(rec); if (mode === 'first') { me = rec; db.noProfiles = false; } if (me && me.id === rec.id) me = rec;
+        save(); dlg.close();
+        if (mode === 'first' && forced) return userForm(null, 'second', true); // the chain goes on: the second gérant is asked right away
+        if (forced) { lockEl.classList.remove('on'); lockEl.innerHTML = ''; }
+        draw(); toast(forced ? 'Profils gérant créés' : 'Profil enregistré');
       })();
       return false;
     }, 'Enregistrer');
-    if (first) { $('dno').style.display = 'none'; dlg.oncancel = e => e.preventDefault(); } else dlg.oncancel = null;
+    if (forced) { $('dno').style.display = 'none'; dlg.oncancel = e => e.preventDefault(); } else dlg.oncancel = null;
     if ($('u_del')) $('u_del').onclick = () => { if (!confirm(`Supprimer le profil ${u.name} ? Ses ventes passées sont conservées.`)) return; db.users = db.users.filter(x => x !== u); if (me && me.id === u.id) me = null; save(); dlg.close(); if (!me) profileLock(); draw(); };
   };
 
@@ -651,8 +655,8 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
         const msg = $('y_msg'), btn = $('dok'); msg.textContent = ''; btn.disabled = true; btn.textContent = 'Connexion…';
         SY.connect({ url: $('y_url').value, anon: $('y_anon').value, ws: $('y_ws').value, pass: $('y_pass').value }).then(r => { dlg.close(); toast('Synchronisation activée : ' + r); draw(); }).catch(e => { msg.textContent = e.message; btn.disabled = false; btn.textContent = 'Connecter'; });
         return false; }, 'Connecter'),
-    uson: () => userForm(null, true),
-    usnew: () => { if (db.users.length >= MAXP) return toast('Deux profils au maximum (deux gérants)'); userForm(null, false); },
+    uson: () => userForm(null, 'first', true),
+    usnew: () => userForm(null, gerants().length < MAXG ? 'second' : 'vendeur'),
     usedit: v => userForm(db.users.find(x => x.id === v), false),
     usoff: () => { if (!confirm('Désactiver les profils ? Tout le monde aura de nouveau tous les droits, sans code PIN de profil.')) return; db.users = []; db.noProfiles = true; me = null; save(); draw(); toast('Profils désactivés'); },
     setpin: () => verifyThen(newPin), lockn: () => unlockScreen(), rmpin: () => verifyThen(() => { if (confirm('Supprimer le code PIN ?')) { db.pin = null; save(); draw(); toast('Code PIN supprimé'); } else draw(); }),

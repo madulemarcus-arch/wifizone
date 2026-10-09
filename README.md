@@ -65,15 +65,25 @@ Réglages → **Synchronisation entre téléphones** → Configurer (ou le bouto
 
 L'application garde une copie pour fonctionner hors connexion : une nouvelle version est téléchargée en arrière-plan, puis une bannière **« Nouvelle version disponible — Actualiser »** apparaît. Si une nouveauté n'apparaît pas : **Réglages → Application → 🔄 Mettre à jour l'application**. Le bouton efface la copie en mémoire (service worker et caches `wifizone-*`) et recharge la dernière version ; **les données ne sont pas touchées**. Le numéro de version (`VERSION` dans `index.html`) doit rester identique à `CACHE` dans `sw.js` et être augmenté à chaque publication.
 
-## Profils : deux gérants
+## Profils : deux gérants, puis des vendeurs
 
-L'application compte **au plus deux profils, tous deux gérants** (par exemple vous et un associé), chacun avec son nom et son **code PIN à 4 chiffres** (stocké sous forme d'empreinte salée). Il n'y a pas de vendeur : les deux gérants ont tous les droits.
+**Connexion par code PIN seulement** : à l'ouverture (et après verrouillage, bouton 🔒 de l'en-tête), l'application affiche uniquement le pavé du code PIN. On ne choisit pas son nom : **le code ouvre directement le bon profil** (chaque code PIN, à 4 chiffres, doit donc être différent de ceux des autres profils ; l'application refuse un code déjà pris). 5 erreurs bloquent 30 secondes. Les codes sont stockés sous forme d'empreintes salées.
 
-**Dès la première ouverture**, avant toute autre chose, l'application affiche **« Bienvenue »** et impose de **créer le premier gérant** (la fenêtre n'a pas de bouton Annuler et ne se ferme pas avec Échap) : rien n'est utilisable tant qu'il n'existe pas. Un appareil qui **rejoint les autres** choisit à la place **« Cet appareil rejoint les autres »** : il ouvre la configuration de la synchronisation et récupère les profils existants (pas de second gérant à créer par erreur). Ensuite, Réglages → **Profils** → **+ Ajouter le 2ᵉ gérant**. Un troisième profil est refusé. On peut modifier un profil (nom, code) ou en supprimer un tant qu'il en reste un ; le dernier ne peut pas être supprimé. **Désactiver** les profils redonne l'accès libre, et l'application ne redemande plus les profils (réglage synchronisé entre appareils).
+**Les deux premiers profils sont des gérants** (tous les droits) ; **tout profil ajouté ensuite est automatiquement un vendeur**, sans question sur le rôle.
+- **Première ouverture** : écran **« Bienvenue »** obligatoire (aucune annulation possible) : création du **premier gérant**, puis, aussitôt, du **deuxième gérant** (nom + code PIN, saisi deux fois). Rien n'est utilisable avant. Un appareil qui **rejoint les autres** choisit « Cet appareil rejoint les autres » : il récupère les profils par la synchronisation (pas de gérant créé par erreur).
+- **Vendeurs** : Réglages → **Profils** → **+ Ajouter un vendeur** (nom + code PIN). Un gérant peut modifier le nom ou le code de n'importe quel profil, ou supprimer un vendeur (ou un gérant tant qu'il en reste un).
+- **Désactiver** les profils redonne l'accès libre ; l'application ne les redemande plus (réglage synchronisé entre appareils).
 
-À l'ouverture (et après verrouillage, bouton 🔒 de l'en-tête), l'application demande **« Qui êtes-vous ? »** puis le code PIN du profil choisi ; 5 erreurs bloquent 30 secondes. Les profils se **synchronisent** : un appareil qui les reçoit se verrouille aussitôt sur l'écran de choix. Le code PIN d'appareil des Réglages est remplacé par les profils tant qu'ils sont actifs.
+| | Gérant | Vendeur |
+|---|---|---|
+| Vendre un ticket, voir le code | oui | oui |
+| Ses propres ventes du jour | oui | oui (seulement les siennes) |
+| Stock de tickets | oui | consultation |
+| Générer / supprimer / marquer importé un lot | oui | non |
+| Annuler une vente confirmée, dépenses, prix, réglages | oui | non |
+| Accueil complet (bénéfice), Clôture, Rapport, Toutes les ventes | oui | non |
 
-Chaque vente enregistre le **nom du gérant** qui l'a faite : il apparaît dans les listes, la recherche, le CSV et la **clôture du jour (« Par profil »)**. Limite : les profils protègent contre l'accès libre à l'écran, pas contre quelqu'un qui connaîtrait la phrase secrète de synchronisation. Code oublié : « Code oublié ? » efface les données de l'appareil, qui se resynchronisent ensuite (ou se restaurent depuis une sauvegarde) ; le second gérant peut aussi changer le code (Réglages → Profils → ✎).
+Les profils se **synchronisent** : un appareil qui les reçoit se verrouille aussitôt sur le pavé du code. Chaque vente enregistre le **nom de son auteur** (listes, recherche, CSV, clôture « Par profil »). Limite : les droits sont appliqués par l'application (ils évitent les erreurs et les abus courants), pas contre quelqu'un qui connaîtrait la phrase secrète de synchronisation. **Code oublié** : un gérant change le code (Réglages → Profils → ✎). Si les deux gérants ont oublié leur code, il faut effacer les données de l'application sur l'appareil (réglages du navigateur), puis restaurer une sauvegarde ou se resynchroniser.
 
 ## Code PIN
 
