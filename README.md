@@ -23,6 +23,10 @@ Adresse : `https://madulemarcus-arch.github.io/wifizone/` (dépôt `madulemarcus
 - Les données sont dans le navigateur de l'appareil (`localStorage`, clé `wifizone-v1`). **Faites une sauvegarde régulière** (Réglages) : l'accueil le rappelle après 3 jours.
 - Forfaits par défaut (repris de `caisse-locale`) : Visiteur 6 h 500 FC, Jour 24 h 1 000 FC, Semaine 7 j 7 000 FC, Mois 30 j 30 000 FC.
 
+## Toutes les ventes (avec heure et code)
+
+Rapport → **📋 Toutes les ventes** (ou le lien « Toutes les ventes › » de l'écran Vendre, ou le bouton de l'accueil). Une ligne par vente : forfait, quantité, **code du ticket**, date, **heure**, mode de paiement, montant. Périodes : aujourd'hui, 7 jours, ce mois, tout. La **recherche** retrouve une vente par code, forfait, mode ou date (utile quand un client dit « mon code ne marche pas » : cherchez le code, choisissez « Tout »). Export **CSV avec codes** et impression. Le CSV du mois (Rapport) contient aussi l'heure et le code.
+
 ## Tickets : génération et stock
 
 Onglet **Vendre** → **🎟 Tickets** (ou la ligne « En stock » quand un lot existe).
@@ -33,6 +37,7 @@ Onglet **Vendre** → **🎟 Tickets** (ou la ligne « En stock » quand un lot 
 - **Vente** : si le forfait a un stock, la vente prend automatiquement un code au hasard dans le stock, l'affiche en grand et propose **WhatsApp / Copier**. Supprimer la vente remet le code en stock. Un forfait sans lot se vend comme avant, sans code.
 - **Import des ventes de la caisse** : un ticket importé dont le code est en stock passe en « vendu ».
 - **Réglages → ✎ forfait** : *lettre du code* (unique, non modifiable une fois des tickets créés) et *profil MikroTik* (nom exact du profil sur le routeur : Visiteur-6H, Jour-24H, Semaine-7J, Mois-30J par défaut). Réglages : *nom du serveur hotspot* (`hotspot-cispol`).
+- **Case « Importé dans le routeur »** : un lot qui vient d'être généré est « à importer » : ses codes **ne sont pas vendus** et ne comptent pas dans le stock tant que vous n'avez pas coché « Importé dans le routeur » (après l'import du fichier `.rsc` dans Winbox). Une bannière orange le rappelle sur l'accueil, la vente et l'écran Tickets. On ne peut plus décocher un lot dont des tickets sont déjà vendus. Les lots créés avant cette fonction comptent comme importés.
 - **Plusieurs téléphones** : stock et lots se synchronisent. Si deux téléphones hors connexion vendent le même code, une alerte « code vendu deux fois » apparaît (accueil et onglet Tickets) ; un toucher donne un autre code au second client.
 
 ## Importer les ventes de la caisse (routeur MikroTik)
