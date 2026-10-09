@@ -17,8 +17,8 @@ header{position:sticky;top:0;z-index:5;background:var(--navy);color:#fff;padding
 header h1{margin:0;font-size:18px}header small{opacity:.85}
 main{max-width:640px;margin:auto;padding:12px 16px}
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
-nav button{flex:1;border:0;background:none;color:var(--mut);padding:10px 2px;font-size:11px;cursor:pointer}
-nav button b{display:block;font-size:20px;font-weight:400}
+nav button{flex:1;min-width:0;border:0;background:none;color:var(--mut);padding:8px 0;font-size:10px;cursor:pointer}nav button[data-v=tix]{color:var(--acc);font-weight:700}nav button[data-v=tix] b{background:var(--acc);border-radius:12px;padding:0 6px;display:inline-block;line-height:1.35}
+nav button b{display:block;font-size:19px;font-weight:400}
 nav button.on{color:var(--acc);font-weight:700}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
@@ -74,7 +74,7 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v9'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v10'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -131,6 +131,7 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
     const stale = !db.lastBackup || (Date.now() - db.lastBackup) > 3 * 864e5;
     return { title: db.name, sub: fdate(r[0]) + (r[0] !== r[1] ? ' → ' + fdate(r[1]) : ''), html: `
       ${stale && (db.sales.length || db.expenses.length) ? `<div class="card warn" data-a="goset" style="cursor:pointer">⚠ Pas de sauvegarde récente. Touchez ici pour sauvegarder vos données.</div>` : ''}
+      <button class="btn full" data-a="tab" data-v="tix" style="margin:0 0 12px">🎟 Générer des tickets <small style="font-weight:400">(stock : ${db.tickets.filter(t => t.status === 'stock' && lotImported(t.lot)).length})</small></button>
       ${dupBanner()}${pendBanner()}
       ${lowStock().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">🎟 Stock de tickets bas : ${lowStock().map(f => `${esc(f.nom)} (${stockOf(f.id).length})`).join(', ')}. Touchez ici pour générer un lot.</div>` : ''}
       ${chips('per', st.per, [['day', "Aujourd'hui"], ['week', '7 jours'], ['month', 'Ce mois']])}
@@ -169,12 +170,12 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
   views.tix = () => {
     const f = db.forfaits.find(x => x.id === st.tfid) || db.forfaits[0], lots = db.lots.slice().sort((a, b) => b.ts - a.ts).slice(0, 12);
     return { title: 'Tickets', sub: 'Stock de codes WiFi', html: `
-      <button class="btn sec sm noprint" data-a="tab" data-v="sell" style="margin-bottom:10px">‹ Retour à la vente</button>${dupBanner()}${pendBanner()}${pendBanner()}
-      <h2>Stock</h2><div class="card">${db.forfaits.map(x => { const n = stockOf(x.id).length, low = hasLots(x.id) && n < (db.seuil || 0); return `<div class="row"><div class="g"><b><span class="badge" style="background:${fcol(x)}">${esc(x.letter)}</span> ${esc(x.nom)}</b><small>${esc(x.duree)} · profil ${esc(x.profil || '—')}</small></div><b class="${low ? 'bad' : n ? 'ok' : ''}">${n} ticket(s)${low ? ' ⚠' : ''}${pendingOf(x.id) ? `<small style="font-weight:400" class="warn">+ ${pendingOf(x.id)} à importer</small>` : ''}</b></div>`; }).join('')}</div>
-      <h2>Générer un lot</h2><div class="card"><label>Forfait</label><select id="t_f">${db.forfaits.map(x => `<option value="${esc(x.id)}" ${x.id === f.id ? 'selected' : ''}>${esc(x.nom)} (${esc(x.duree)})</option>`).join('')}</select>
+      ${dupBanner()}${pendBanner()}
+      <h2>🎟 Générer des tickets</h2><div class="card"><label>Forfait</label><select id="t_f">${db.forfaits.map(x => `<option value="${esc(x.id)}" ${x.id === f.id ? 'selected' : ''}>${esc(x.nom)} (${esc(x.duree)})</option>`).join('')}</select>
         <label>Nombre de tickets (1 à 300)</label><input id="t_n" type="number" inputmode="numeric" min="1" max="300" value="${st.tn}">
         <button class="btn full" data-a="genlot">🎟 Générer le lot</button>
         <p class="mut" style="margin-bottom:0">Après la génération : téléchargez le fichier <b>.rsc</b>, importez-le dans le routeur (Winbox → Files → glisser le fichier → New Terminal : <code>/import file-name=…</code>), puis imprimez les tickets.</p></div>
+      <h2>Stock</h2><div class="card">${db.forfaits.map(x => { const n = stockOf(x.id).length, low = hasLots(x.id) && n < (db.seuil || 0); return `<div class="row"><div class="g"><b><span class="badge" style="background:${fcol(x)}">${esc(x.letter)}</span> ${esc(x.nom)}</b><small>${esc(x.duree)} · profil ${esc(x.profil || '—')}</small></div><b class="${low ? 'bad' : n ? 'ok' : ''}">${n} ticket(s)${low ? ' ⚠' : ''}${pendingOf(x.id) ? `<small style="font-weight:400" class="warn">+ ${pendingOf(x.id)} à importer</small>` : ''}</b></div>`; }).join('')}</div>
       <h2>Derniers lots</h2><div class="card">${lots.length ? lots.map(l => { const lf = db.forfaits.find(x => x.id === l.fid) || { nom: 'Forfait supprimé', letter: '?' }, tk = lotCodes(l.id), left = tk.filter(t => t.status === 'stock').length; return `<div class="row" style="flex-wrap:wrap"><div class="g"><b>${esc(lf.nom)} × ${l.n}</b><small>${new Date(l.ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · ${left} restant(s), ${tk.length - left} vendu(s)</small><label style="display:flex;gap:8px;align-items:center;margin-top:6px;color:${l.imported === false ? 'var(--warn)' : 'var(--ok)'}"><input type="checkbox" style="width:auto;margin:0" data-a="lotimp" data-v="${l.id}" ${l.imported === false ? '' : 'checked'}> ${l.imported === false ? 'À importer dans le routeur' : 'Importé dans le routeur'}</label></div><div class="bar" style="margin:0"><button class="btn sm sec" data-a="lotrsc" data-v="${l.id}">⬇ .rsc</button><button class="btn sm sec" data-a="lotprint" data-v="${l.id}">🖨️</button><button class="btn sm sec" data-a="lotcsv" data-v="${l.id}">CSV</button></div></div>`; }).join('') : '<div class="empty">Aucun lot généré.</div>'}</div>` };
   };
   // codes shown after a sale, to give to the client
@@ -287,10 +288,10 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
       <button class="btn full" data-a="update">🔄 Mettre à jour l'application</button></div>
     <p class="mut" style="text-align:center">WiFi Zone Manager · ${VERSION}</p>` });
 
-  const NAV = [['home', '🏠', 'Accueil'], ['sell', '🎫', 'Vendre'], ['exp', '💸', 'Dépenses'], ['day', '🌙', 'Clôture'], ['rep', '📊', 'Rapport'], ['set', '⚙️', 'Réglages']];
+  const NAV = [['home', '🏠', 'Accueil'], ['sell', '🎫', 'Vendre'], ['tix', '🎟️', 'Tickets'], ['exp', '💸', 'Dépenses'], ['day', '🌙', 'Clôture'], ['rep', '📊', 'Rapport'], ['set', '⚙️', 'Réglages']];
   const draw = () => {
     const v = views[st.tab](); $('ttl').textContent = v.title; $('sub').textContent = v.sub || ''; $('view').innerHTML = v.html;
-    $('nav').innerHTML = NAV.map(([k, i, t]) => `<button class="${(st.tab === 'tix' ? 'sell' : st.tab === 'sales' ? 'rep' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
+    $('nav').innerHTML = NAV.map(([k, i, t]) => `<button class="${(st.tab === 'sales' ? 'rep' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
     if ($('sq')) $('sq').oninput = () => { st.sq = $('sq').value; const l = salesFiltered(); $('slist').innerHTML = saleRows(l); $('stot').textContent = salesTot(l); };
     if ($('cdate')) $('cdate').onchange = () => { const d = $('cdate').value; if (d && d <= today()) { st.cd = d; draw(); } };
   };

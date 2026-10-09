@@ -29,7 +29,7 @@ Rapport → **📋 Toutes les ventes** (ou le lien « Toutes les ventes › » d
 
 ## Tickets : génération et stock
 
-Onglet **Vendre** → **🎟 Tickets** (ou la ligne « En stock » quand un lot existe).
+Onglet **🎟 Tickets** de la barre du bas (au centre, en bleu), ou le gros bouton **« Générer des tickets »** en haut de l'accueil. L'écran s'ouvre sur la génération, puis le stock par forfait et les derniers lots.
 
 - **Générer un lot** : choisir le forfait et le nombre (1 à 300). Chaque ticket est un code de 6 caractères : la **lettre du forfait** (V, J, S, M…) puis 5 caractères sans 0/O/1/I, unique parmi tous les tickets et ventes. Un fichier **`.rsc`** est téléchargé : une ligne `/ip hotspot user add name=CODE password=CODE profile=… server=…` par ticket, **sans commentaire** (le routeur y écrit lui-même l'expiration). Importer le fichier dans le routeur : Winbox → Files (glisser le fichier) → New Terminal → `/import file-name=…`.
 - **Imprimer** (🖨️) : planche A4 de tickets découpables (4 colonnes) ; **CSV** (Excel) : code, forfait, prix, statut.
