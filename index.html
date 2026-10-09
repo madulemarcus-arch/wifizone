@@ -111,7 +111,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v16'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v17'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -451,7 +451,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     const L = lockState;
     lockEl.innerHTML = `<h2>${esc(L.title)}</h2><p id="lmsg">${esc(msg || '')}</p><div class="dots">${Array.from({ length: L.len }, (_, i) => `<i class="${i < L.buf.length ? 'f' : ''}"></i>`).join('')}</div>
       <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="x" style="font-size:16px">${L.cancel ? 'Annuler' : ''}</button><button data-k="0">0</button><button data-k="d">⌫</button></div>
-      ${L.mode === 'unlock' ? '<button class="lnk" data-k="forgot">Code oublié ?</button>' : L.mode === 'profile' ? '<p style="opacity:.8;font-size:13px;margin-top:16px;max-width:300px">Code oublié ? Un gérant peut le changer (Réglages → Profils).</p>' : ''}`;
+      ${L.mode === 'unlock' ? '<button class="lnk" data-k="forgot">Code oublié ?</button>' : L.mode === 'profile' ? '<button class="lnk" data-k="newv">Nouveau vendeur ? S\'enregistrer</button><p style="opacity:.8;font-size:13px;margin-top:10px;max-width:300px">Code oublié ? Un gérant peut le changer (Réglages → Profils).</p>' : ''}`;
     lockEl.classList.add('on');
   };
   // ask for a PIN: onDone(pin) is called once L.len digits are entered
@@ -471,9 +471,10 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   lockEl.addEventListener('click', e => {
     const b = e.target.closest('[data-k]'); if (!b) return; const k = b.dataset.k, L = lockState;
     if (k === 'forgot') { if (confirm('Code oublié : la seule solution est d\'effacer les données de cette application sur cet appareil, puis de restaurer votre dernière sauvegarde (Réglages → Restaurer). Effacer maintenant ?')) { try { localStorage.removeItem(KEY); } catch (x) {} location.reload(); } return; }
+    if (k === 'newv') return approveNewSeller();
     if (k === 'w:new') return userForm(null, 'first', true);
     if (k === 'w:join') return A.syncsetup();
-    if (k === 'x') { if (L.mode === 'profile') return profileLock(); if (L.cancel) { lockEl.classList.remove('on'); lockEl.innerHTML = ''; } return; }
+    if (k === 'x') { if (L.mode === 'profile' || L.mode === 'approve') return profileLock(); if (L.cancel) { lockEl.classList.remove('on'); lockEl.innerHTML = ''; } return; }
     if (k === 'd') L.buf = L.buf.slice(0, -1); else if (L.buf.length < L.len) L.buf += k;
     drawLock(); if (L.buf.length === L.len) { const pin = L.buf, cb = L.cb; setTimeout(() => cb(pin), 120); }
   });
@@ -505,6 +506,14 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const canView = v => isMgr() || (!!me && SELLER_VIEWS.includes(v));
   const canAct = a => isMgr() || (!!me && SELLER_ACTS.has(a));
   const findByPin = async (pin, exceptId) => { for (const u of db.users) if (u.id !== exceptId && await hashPin(pin, u.salt) === u.hash) return u; return null; };
+  // a new vendeur registers himself (name + PIN) once a gérant has approved by typing his own PIN
+  const approveNewSeller = () => askPin('Accord d\'un gérant', async pin => {
+    if (Date.now() < lockState.until) return drawLock(`Patientez ${Math.ceil((lockState.until - Date.now()) / 1000)} s`);
+    const u = await findByPin(pin);
+    if (u && u.role === 'gerant') { lockState.fails = 0; lockState.buf = ''; drawLock('Accord donné'); return userForm(null, 'vendeur', false, true); }
+    lockState.fails++; lockState.buf = '';
+    if (lockState.fails >= 5) { lockState.until = Date.now() + 30000; lockState.fails = 0; drawLock('Trop d\'essais : attendez 30 secondes'); } else drawLock('Code incorrect, ou ce n\'est pas un gérant');
+  }, { mode: 'approve', cancel: true, msg: 'Un gérant doit taper son code PIN pour autoriser' });
   // sign-in screen: just the PIN pad, the code decides who you are
   const profileLock = () => {
     me = null;
@@ -526,7 +535,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const profilesCard = () => `<h2>Profils</h2><div class="card">${profilesOn() ? db.users.map(u => `<div class="row"><div class="g"><b>${esc(u.name)}</b><small>${ROLES[u.role]}</small></div><button class="btn sm sec" data-a="usedit" data-v="${esc(u.id)}">✎</button></div>`).join('') + `<div class="bar"><button class="btn sec" data-a="usnew">${gerants().length < MAXG ? '+ Ajouter le 2ᵉ gérant' : '+ Ajouter un vendeur'}</button><button class="btn sec" data-a="usoff">Désactiver</button></div><p class="mut" style="margin-bottom:0">${gerants().length < MAXG ? 'Le deuxième profil est un gérant. ' : 'Les deux gérants sont créés : les profils ajoutés sont des <b>vendeurs</b> (vendre seulement). '}Chacun se connecte en saisissant seulement son code PIN, qui doit être différent de ceux des autres.</p>` : `<p class="mut" style="margin-top:0">Sans profils, toute personne qui ouvre l'application peut tout faire. Avec les profils : <b>deux gérants</b> (tous les droits), puis des <b>vendeurs</b> qui ne peuvent que vendre. Chacun entre seulement son code PIN, et chaque vente porte le nom de son auteur.</p><button class="btn full" data-a="uson">Activer les profils</button>`}</div>`;
   const pinFields = pre => `<label>Code PIN (4 chiffres)${pre ? ' — laisser vide pour ne pas le changer' : ''}</label><input id="u_pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"><label>Confirmer le code PIN</label><input id="u_pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="off">`;
   // mode: 'first' | 'second' (gérants) | 'vendeur' | undefined (edit); forced = part of the start-up chain, no way to cancel
-  const userForm = (u, mode, forced) => {
+  const userForm = (u, mode, forced, self) => {
     const lastMgr = !!u && u.role === 'gerant' && gerants().length <= 1, role = u ? u.role : (mode === 'vendeur' ? 'vendeur' : 'gerant');
     const intro = { first: 'Premier gérant : tous les droits. Notez bien son code PIN.', second: 'Deuxième gérant : mêmes droits. Son code PIN doit être différent du premier.', vendeur: 'Vendeur : il peut vendre des tickets, rien d\'autre. Son code PIN doit être différent de ceux des autres.' }[mode] || '';
     modal({ first: 'Premier gérant', second: 'Deuxième gérant', vendeur: 'Nouveau vendeur' }[mode] || 'Modifier le profil',
@@ -541,15 +550,16 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
         if (pin && await findByPin(pin, u && u.id)) { msg.textContent = 'Ce code PIN est déjà utilisé par un autre profil : choisissez-en un autre'; return; }
         const rec = u || { id: uid(), ts: Date.now() };
         Object.assign(rec, { name, role }); if (pin) { rec.salt = uid() + uid(); rec.hash = await hashPin(pin, rec.salt); }
-        if (!u) db.users.push(rec); if (mode === 'first') { me = rec; db.noProfiles = false; } if (me && me.id === rec.id) me = rec;
+        if (!u) db.users.push(rec); if (mode === 'first') { me = rec; db.noProfiles = false; } if (self) { me = rec; lockEl.classList.remove('on'); lockEl.innerHTML = ''; if (!canView(st.tab)) st.tab = 'sell'; } if (me && me.id === rec.id) me = rec;
         save(); dlg.close();
         if (mode === 'first' && forced) return userForm(null, 'second', true); // the chain goes on: the second gérant is asked right away
         if (forced) { lockEl.classList.remove('on'); lockEl.innerHTML = ''; }
-        draw(); toast(forced ? 'Profils gérant créés' : 'Profil enregistré');
+        draw(); toast(forced ? 'Profils gérant créés' : self ? 'Bienvenue ' + name : 'Profil enregistré');
       })();
       return false;
     }, 'Enregistrer');
     if (forced) { $('dno').style.display = 'none'; dlg.oncancel = e => e.preventDefault(); } else dlg.oncancel = null;
+    if (self) { const back = () => { dlg.close(); profileLock(); }; $('dno').onclick = back; dlg.oncancel = e => { e.preventDefault(); back(); }; }
     if ($('u_del')) $('u_del').onclick = () => { if (!confirm(`Supprimer le profil ${u.name} ? Ses ventes passées sont conservées.`)) return; db.users = db.users.filter(x => x !== u); if (me && me.id === u.id) me = null; save(); dlg.close(); if (!me) profileLock(); draw(); };
   };
 

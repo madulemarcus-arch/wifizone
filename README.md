@@ -71,7 +71,8 @@ L'application garde une copie pour fonctionner hors connexion : une nouvelle ver
 
 **Les deux premiers profils sont des gérants** (tous les droits) ; **tout profil ajouté ensuite est automatiquement un vendeur**, sans question sur le rôle.
 - **Première ouverture** : écran **« Bienvenue »** obligatoire (aucune annulation possible) : création du **premier gérant**, puis, aussitôt, du **deuxième gérant** (nom + code PIN, saisi deux fois). Rien n'est utilisable avant. Un appareil qui **rejoint les autres** choisit « Cet appareil rejoint les autres » : il récupère les profils par la synchronisation (pas de gérant créé par erreur).
-- **Vendeurs** : Réglages → **Profils** → **+ Ajouter un vendeur** (nom + code PIN). Un gérant peut modifier le nom ou le code de n'importe quel profil, ou supprimer un vendeur (ou un gérant tant qu'il en reste un).
+- **Nouveau vendeur qui s'enregistre lui-même** : sur le pavé du code, **« Nouveau vendeur ? S'enregistrer »**. Un **gérant doit d'abord taper son propre code PIN** pour autoriser (un code de vendeur ne suffit pas ; 5 erreurs = 30 s d'attente). Le vendeur saisit alors **son nom et son code PIN** (deux fois ; le code doit être différent de ceux des autres profils), il est connecté tout de suite, et **les fois suivantes il ne tape que son code**. Annuler à n'importe quelle étape revient au pavé sans rien créer.
+- **Vendeurs ajoutés par un gérant** : Réglages → **Profils** → **+ Ajouter un vendeur** (nom + code PIN), pour inscrire quelqu'un à sa place. Un gérant peut modifier le nom ou le code de n'importe quel profil, ou supprimer un vendeur (ou un gérant tant qu'il en reste un).
 - **Désactiver** les profils redonne l'accès libre ; l'application ne les redemande plus (réglage synchronisé entre appareils).
 
 | | Gérant | Vendeur |
