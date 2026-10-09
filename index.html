@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1f44">
+<script>try{var t=localStorage.getItem('wifizone-theme');if(t==='light'||t==='dark'||t==='noir')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
@@ -17,13 +18,28 @@
   --f-v:#2e8b3a;--f-j:#1f6feb;--f-s:#d9600b;--f-m:#7b2cbf;
   --sh:0 1px 2px rgba(12,26,51,.06),0 10px 28px rgba(12,26,51,.07);--shs:0 1px 2px rgba(12,26,51,.08),0 4px 12px rgba(12,26,51,.08);
   --r:18px;--g:linear-gradient(135deg,#1f6feb,#4f8cff)}
-@media (prefers-color-scheme:dark){:root{
+@media (prefers-color-scheme:dark){:root:not([data-theme]){
   --bg:#070e1c;--bg2:#0b1530;--card:#101c33;--txt:#e9eff9;--mut:#9fb0cc;--line:#21324f;
   --acc:#5b9bff;--acc2:#82b4ff;--navy:#0b1730;--navy2:#143266;
   --ok:#5fd69a;--bad:#ff8f86;--warn:#f5bf5c;--okbg:#0f2a1f;--badbg:#321615;--warnbg:#2f2410;
   --f-v:#5fc96b;--f-j:#6aa3ff;--f-s:#ff9b4f;--f-m:#c58cf5;
   --sh:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.35);--shs:0 1px 2px rgba(0,0,0,.5),0 4px 12px rgba(0,0,0,.4);
   --g:linear-gradient(135deg,#2f7bf0,#5b9bff)}}
+:root[data-theme=dark]{
+  --bg:#070e1c;--bg2:#0b1530;--card:#101c33;--txt:#e9eff9;--mut:#9fb0cc;--line:#21324f;
+  --acc:#5b9bff;--acc2:#82b4ff;--navy:#0b1730;--navy2:#143266;
+  --ok:#5fd69a;--bad:#ff8f86;--warn:#f5bf5c;--okbg:#0f2a1f;--badbg:#321615;--warnbg:#2f2410;
+  --f-v:#5fc96b;--f-j:#6aa3ff;--f-s:#ff9b4f;--f-m:#c58cf5;
+  --sh:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.35);--shs:0 1px 2px rgba(0,0,0,.5),0 4px 12px rgba(0,0,0,.4);
+  --g:linear-gradient(135deg,#2f7bf0,#5b9bff)}
+:root[data-theme=noir]{
+  --bg:#070e1c;--bg2:#0b1530;--card:#101c33;--txt:#e9eff9;--mut:#9fb0cc;--line:#21324f;
+  --acc:#5b9bff;--acc2:#82b4ff;--navy:#0b1730;--navy2:#143266;
+  --ok:#5fd69a;--bad:#ff8f86;--warn:#f5bf5c;--okbg:#0f2a1f;--badbg:#321615;--warnbg:#2f2410;
+  --f-v:#5fc96b;--f-j:#6aa3ff;--f-s:#ff9b4f;--f-m:#c58cf5;
+  --sh:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.35);--shs:0 1px 2px rgba(0,0,0,.5),0 4px 12px rgba(0,0,0,.4);
+  --g:linear-gradient(135deg,#2f7bf0,#5b9bff);--bg:#000;--bg2:#06070b;--card:#0b0d12;--line:#1b2030;--navy:#000;--navy2:#0d1a33;color-scheme:dark}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{scroll-behavior:smooth}
 body{margin:0;font:16px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1200px 500px at 50% -120px,var(--bg2),var(--bg)) fixed;color:var(--txt);padding-bottom:112px;-webkit-font-smoothing:antialiased}
@@ -63,7 +79,7 @@ h2{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font
 .fo button:active{transform:scale(.97)}
 .fo button.on{background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 70%,#fff));color:#fff;border-color:transparent;box-shadow:0 10px 24px color-mix(in srgb,var(--c) 45%,transparent)}
 .fo button.on::before{height:0}.fo button.on small{color:#ffffffd9}
-@media (prefers-color-scheme:dark){.fo button.on{color:#07101f}.fo button.on small{color:#07101fcc}}
+@media (prefers-color-scheme:dark){:root:not([data-theme]) .fo button.on{color:#07101f}:root:not([data-theme]) .fo button.on small{color:#07101fcc}}:root[data-theme=dark] .fo button.on,:root[data-theme=noir] .fo button.on{color:#07101f}:root[data-theme=dark] .fo button.on small,:root[data-theme=noir] .fo button.on small{color:#07101fcc}
 label{display:block;font-size:13px;color:var(--mut);margin-top:12px;font-weight:600}
 input,select{width:100%;padding:13px 14px;font-size:16px;border:1.5px solid var(--line);border-radius:14px;background:var(--bg);color:var(--txt);margin-top:5px;transition:border-color .15s,box-shadow .15s;font-family:inherit}
 input:focus,select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 4px color-mix(in srgb,var(--acc) 22%,transparent)}
@@ -112,7 +128,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v20'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v21'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -158,6 +174,8 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     dlg.querySelector('form').onsubmit = e => { e.preventDefault(); if (onOk && onOk() === false) return; dlg.close(); };
     if (!dlg.open) dlg.showModal();
   };
+  const curTheme = () => { try { const t = localStorage.getItem('wifizone-theme'); return t === 'light' || t === 'dark' || t === 'noir' ? t : 'auto'; } catch (e) { return 'auto'; } };
+  const applyTheme = t => { const el = document.documentElement; if (t === 'auto') el.removeAttribute('data-theme'); else el.setAttribute('data-theme', t); };
   const chips = (act, cur, items) => `<div class="chips">${items.map(([k, t]) => `<button class="chip ${cur === k ? 'on' : ''}" data-a="${act}" data-v="${esc(k)}">${esc(t)}</button>`).join('')}</div>`;
 
   // ---------- views ----------
@@ -335,6 +353,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
       <button class="btn full" data-a="impcsv">⬆ Choisir le fichier CSV</button><input type="file" id="ifile" accept=".csv,text/csv" hidden></div>
     ${profilesCard()}
     ${syncCard()}
+    <h2>Apparence</h2><div class="card">${chips('theme', curTheme(), [['auto', '🌓 Auto'], ['light', '☀️ Clair'], ['dark', '🌙 Sombre'], ['noir', '⚫ Noir']])}<p class="mut" style="margin-bottom:0">Choix propre à cet appareil. « Auto » suit le réglage du téléphone ; « Noir » économise la batterie sur écran OLED.</p></div>
     <h2>Sécurité</h2><div class="card"><div class="row"><div class="g"><b>Code PIN</b><small>${db.pin ? 'Activé : demandé à l\'ouverture' : 'Désactivé : tout le monde peut ouvrir l\'application'}</small></div></div>
       ${db.pin ? `<label>Verrouiller après</label><select id="s_lock"><option value="0" ${db.lockMin === 0 ? 'selected' : ''}>Dès que je quitte l'application</option><option value="2" ${db.lockMin === 2 ? 'selected' : ''}>2 minutes</option><option value="10" ${db.lockMin === 10 ? 'selected' : ''}>10 minutes</option></select>` : ''}
       <div class="bar"><button class="btn" data-a="setpin">${db.pin ? 'Changer le code' : 'Créer un code PIN'}</button>${db.pin ? '<button class="btn sec" data-a="lockn">🔒 Verrouiller</button><button class="btn sec" data-a="rmpin">Supprimer</button>' : ''}</div></div>
@@ -610,6 +629,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const A = {
     tab: v => { st.tab = v; draw(); window.scrollTo(0, 0); }, per: v => { st.per = v; draw(); }, goset: () => A.tab('set'),
     fid: v => { st.fid = v; draw(); }, qty: v => { st.qty = Math.max(1, st.qty + +v); draw(); }, mode: v => { st.mode = v; draw(); },
+    theme: v => { const t = ['light', 'dark', 'noir'].includes(v) ? v : 'auto'; try { if (t === 'auto') localStorage.removeItem('wifizone-theme'); else localStorage.setItem('wifizone-theme', t); } catch (e) {} applyTheme(t); draw(); },
     src: v => { st.src = v === 'paper' ? 'paper' : 'app'; draw(); },
     sell: () => { const f = db.forfaits.find(x => x.id === st.fid); if (!f) return;
       if (st.src === 'paper') { // a paper ticket: the money is counted, no code is shown; with a code, that exact ticket leaves the paper stock

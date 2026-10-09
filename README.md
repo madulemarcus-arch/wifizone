@@ -72,6 +72,10 @@ Réglages → **Synchronisation entre téléphones** → Configurer (ou le bouto
 - Synchronisation automatique 4 secondes après chaque modification, au retour dans l'application, au retour de la connexion et toutes les 30 secondes ; bouton « Synchroniser maintenant ». Le bouton ☁️ indique l'état (☁️ à jour, 🔄 en cours, 📴 hors connexion, ⚠️ erreur).
 - Déconnecter garde toutes les données sur le téléphone.
 
+## Thèmes (clair / sombre)
+
+Réglages → **Apparence** : **🌓 Auto** (suit le téléphone), **☀️ Clair**, **🌙 Sombre** ou **⚫ Noir** (fond noir pur, économise la batterie sur écran OLED). Le choix est **propre à chaque appareil** (il n'est pas synchronisé) et reste après la fermeture de l'application.
+
 ## Logo
 
 Le logo mélange la marque CispolStore et le signe du WiFi : le **« C »** de CispolStore (bleu marine / blanc) s'ouvre vers le haut à droite, le **cube hexagonal** orange en est le cœur, et **trois ondes dégradées jaune → orange** en jaillissent comme un signal WiFi. Fichiers à la racine : `logo.svg` (marque sans fond, pour l'en-tête et les écrans de connexion), `icon-192.png` / `icon-512.png` (icône de l'application, fond bleu marine), `icon-maskable-512.png` (version « maskable » d'Android, marque réduite dans la zone sûre). Dossier `brand/` (non publié) : sources vectorielles `logo-icone.svg` (fond sombre), `logo-clair.svg` (fond blanc), `logo-sans-fond-clair.svg` et versions PNG 1024 px, pour l'impression, les réseaux sociaux ou une enseigne. Le fichier de publication (`.github/workflows/pages.yml`) copie `*.png` et `logo.svg` : tout nouveau fichier d'image publié doit y figurer, et dans `FILES` de `sw.js`.
