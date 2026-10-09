@@ -55,6 +55,10 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
 #toast.on{opacity:1}
 .empty{text-align:center;color:var(--mut);padding:24px 0}
 @media print{header,nav,.noprint{display:none!important}body{padding:0;background:#fff}}
+#planche{display:none}
+@media print{body.imprime>*:not(#planche){display:none!important}body.imprime{background:#fff;color:#000;padding:0}body.imprime #planche{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+.tk{border:1px dashed #666;padding:10px 6px;text-align:center;font:11px/1.35 Arial,sans-serif;color:#000;page-break-inside:avoid}.tk b{display:block;font:700 20px/1.4 'Courier New',monospace;letter-spacing:2px;margin:4px 0}.tk small{display:block;color:#333}}
+.badge{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700;color:#fff}
 </style>
 </head>
 <body>
@@ -62,6 +66,7 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
 <main id="view"></main>
 <nav id="nav"></nav>
 <dialog id="dlg"></dialog>
+<div id="planche"></div>
 <div id="lock"></div>
 <div id="toast"></div>
 <script>
@@ -80,9 +85,13 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
   const MODES = ['Cash', 'M-Pesa', 'Airtel Money', 'Orange Money', 'Banque'], CATS = ['Abonnement Starlink', 'Électricité / carburant', 'Salaire', 'Matériel / réparation', 'Papier / impression', 'Autre'];
   const blank = () => ({ v: 1, name: 'WiFi Zone', rate: 2400, lastBackup: '', pin: null, lockMin: 2, forfaits: [
     { id: 'V', nom: 'Visiteur', duree: '6 heures', prix: 500 }, { id: 'J', nom: 'Jour', duree: '24 heures', prix: 1000 },
-    { id: 'S', nom: 'Semaine', duree: '7 jours', prix: 7000 }, { id: 'M', nom: 'Mois', duree: '30 jours', prix: 30000 }], sales: [], expenses: [], closings: [] });
+    { id: 'S', nom: 'Semaine', duree: '7 jours', prix: 7000 }, { id: 'M', nom: 'Mois', duree: '30 jours', prix: 30000 }], sales: [], expenses: [], closings: [], tickets: [], lots: [], server: 'hotspot-cispol', seuil: 10 });
   let db; try { db = { ...blank(), ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) { db = blank(); }
-  db.forfaits.forEach((f, i) => { if (!f.ts) f.ts = i + 1; }); // stable order for sync
+  // forfaits: stable order for sync, plus the ticket-code letter and the MikroTik profile (defaults follow the CISPOLstore router)
+  const PROFILS = { V: 'Visiteur-6H', J: 'Jour-24H', S: 'Semaine-7J', M: 'Mois-30J' };
+  db.forfaits.forEach((f, i) => { if (!f.ts) f.ts = i + 1; if (!f.letter) f.letter = (f.id in PROFILS) ? f.id : ''; if (f.profil == null) f.profil = PROFILS[f.id] || ''; });
+  db.forfaits.forEach(f => { if (!f.letter) f.letter = freeLetter(f.nom, f); });
+  function freeLetter(nom, self) { const used = new Set(db.forfaits.filter(x => x !== self).map(x => x.letter)); for (const c of (nom.toUpperCase().replace(/[^A-Z]/g, '') + 'ABCDEFGHJKLMNPQRSTUVWXYZ')) if (!used.has(c)) return c; return 'X'; }
   const save = () => { if (window.__afterSave) window.__afterSave(); try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Stockage plein : faites une sauvegarde'); } };
   const toast = m => { const t = $('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2400); };
   // money: every record keeps its own currency and the rate of the day it was made
@@ -91,7 +100,7 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
   const usdOf = cdf => cdf / db.rate;
   const both = cdf => `${fmt(cdf)} <small>≈ ${fmt(usdOf(cdf), 'USD')}</small>`;
 
-  const st = { tab: 'home', per: 'day', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7) };
+  const st = { tab: 'home', tfid: 'J', tn: 50, per: 'day', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7) };
   const range = per => { const t = today(); if (per === 'day') return [t, t]; if (per === 'week') return [addDays(t, -6), t]; return [t.slice(0, 7) + '-01', t]; };
   const inR = (d, r) => d >= r[0] && d <= r[1];
   const saleCDF = s => s.amount, expCDF = e => toCDF(e.amount, e.cur, e.rate);
@@ -121,16 +130,57 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
     const stale = !db.lastBackup || (Date.now() - db.lastBackup) > 3 * 864e5;
     return { title: db.name, sub: fdate(r[0]) + (r[0] !== r[1] ? ' → ' + fdate(r[1]) : ''), html: `
       ${stale && (db.sales.length || db.expenses.length) ? `<div class="card warn" data-a="goset" style="cursor:pointer">⚠ Pas de sauvegarde récente. Touchez ici pour sauvegarder vos données.</div>` : ''}
+      ${dupBanner()}
+      ${lowStock().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">🎟 Stock de tickets bas : ${lowStock().map(f => `${esc(f.nom)} (${stockOf(f.id).length})`).join(', ')}. Touchez ici pour générer un lot.</div>` : ''}
       ${chips('per', st.per, [['day', "Aujourd'hui"], ['week', '7 jours'], ['month', 'Ce mois']])}
       <div class="grid"><div class="stat"><small>Ventes</small><b class="ok">${fmt(inc)}</b><small>${tickets} ticket(s)</small></div><div class="stat"><small>Dépenses</small><b class="bad">${fmt(out)}</b><small>${E.length} dépense(s)</small></div></div>
       <div class="card"><small class="mut">Bénéfice</small><div class="total ${net >= 0 ? 'ok' : 'bad'}">${fmt(net)}</div><div class="mut">≈ ${fmt(usdOf(net), 'USD')} (1 $ = ${nf(db.rate)} FC)</div></div>
       <h2>Par forfait</h2><div class="card">${Object.keys(byF).length ? Object.entries(byF).map(([id, o]) => `<div class="row"><div class="g"><b><span style="color:${fcol(db.forfaits.find(f => f.id === id) || { id })}">●</span> ${esc(fname(id))}</b><small>${o.q} ticket(s)</small></div><b>${fmt(o.a)}</b></div>`).join('') : '<div class="empty">Aucune vente sur cette période.</div>'}</div>
       <h2>Par mode de paiement</h2><div class="card">${Object.keys(byM).length ? Object.entries(byM).map(([m, a]) => `<div class="row"><div class="g">${esc(m)}</div><b>${fmt(a)}</b></div>`).join('') : '<div class="empty">—</div>'}</div>` };
   };
+  // ---------- Tickets: stock of hotspot codes per forfait ----------
+  // Code = forfait letter + 5 characters (no 0/O/1/I), same rule as the router. Comment stays empty on purpose (the router script writes the expiry there).
+  const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const stockOf = fid => db.tickets.filter(t => t.fid === fid && t.status === 'stock');
+  const hasLots = fid => db.lots.some(l => l.fid === fid);
+  const newCode = prefix => { const b = crypto.getRandomValues(new Uint8Array(5)); return prefix + [...b].map(x => ALPHA[x % ALPHA.length]).join(''); };
+  const genLot = (f, n) => {
+    const taken = new Set([...db.tickets.map(t => t.code), ...db.sales.flatMap(x => String(x.ref || '').split(' '))]), codes = [];
+    while (codes.length < n) { const c = newCode(f.letter || 'X'); if (!taken.has(c)) { taken.add(c); codes.push(c); } }
+    const lot = { id: 'L' + Date.now().toString(36), ts: Date.now(), fid: f.id, n, codes };
+    const t0 = Date.now(); db.lots.push({ id: lot.id, ts: lot.ts, fid: f.id, n });
+    codes.forEach((code, i) => db.tickets.push({ id: code, code, ts: t0 + i, fid: f.id, lot: lot.id, status: 'stock' }));
+    save(); return lot;
+  };
+  const lotCodes = lotId => db.tickets.filter(t => t.lot === lotId).sort((a, b) => a.ts - b.ts);
+  const rscOf = (f, lot) => ['# Lot ' + lot.id + ' - ' + f.nom + ' - ' + lotCodes(lot.id).length + ' tickets', ...lotCodes(lot.id).map(t => `/ip hotspot user add name=${t.code} password=${t.code} profile=${f.profil} server=${db.server}`)].join('\n') + '\n';
+  const printLot = (f, lot) => { $('planche').innerHTML = lotCodes(lot.id).map(t => `<div class="tk">${esc(db.name)}<b>${esc(t.code)}</b>${esc(f.nom)} · ${esc(f.duree)} · ${fmt(f.prix)}<small>Connectez-vous au WiFi puis saisissez ce code</small></div>`).join(''); document.body.classList.add('imprime'); window.print(); document.body.classList.remove('imprime'); };
+  const lowStock = () => db.forfaits.filter(f => hasLots(f.id) && stockOf(f.id).length < (db.seuil || 0));
+  // a code sold twice (two phones sold the same ticket while offline): the later sale gets another ticket
+  const dupSales = () => { const seen = new Set(), out = []; db.sales.slice().sort((a, b) => a.ts - b.ts).forEach(x => (x.codes || []).forEach(c => { if (seen.has(c)) out.push({ sale: x, code: c }); else seen.add(c); })); return out; };
+  const dupBanner = () => dupSales().length ? `<div class="card warn" data-a="fixdup" style="cursor:pointer">⚠ ${dupSales().length} code(s) vendu(s) deux fois (${dupSales().map(d => esc(d.code)).join(', ')}). Touchez ici pour donner un autre code au second client.</div>` : '';
+  views.tix = () => {
+    const f = db.forfaits.find(x => x.id === st.tfid) || db.forfaits[0], lots = db.lots.slice().sort((a, b) => b.ts - a.ts).slice(0, 12);
+    return { title: 'Tickets', sub: 'Stock de codes WiFi', html: `
+      <button class="btn sec sm noprint" data-a="tab" data-v="sell" style="margin-bottom:10px">‹ Retour à la vente</button>${dupBanner()}
+      <h2>Stock</h2><div class="card">${db.forfaits.map(x => { const n = stockOf(x.id).length, low = hasLots(x.id) && n < (db.seuil || 0); return `<div class="row"><div class="g"><b><span class="badge" style="background:${fcol(x)}">${esc(x.letter)}</span> ${esc(x.nom)}</b><small>${esc(x.duree)} · profil ${esc(x.profil || '—')}</small></div><b class="${low ? 'bad' : n ? 'ok' : ''}">${n} ticket(s)${low ? ' ⚠' : ''}</b></div>`; }).join('')}</div>
+      <h2>Générer un lot</h2><div class="card"><label>Forfait</label><select id="t_f">${db.forfaits.map(x => `<option value="${esc(x.id)}" ${x.id === f.id ? 'selected' : ''}>${esc(x.nom)} (${esc(x.duree)})</option>`).join('')}</select>
+        <label>Nombre de tickets (1 à 300)</label><input id="t_n" type="number" inputmode="numeric" min="1" max="300" value="${st.tn}">
+        <button class="btn full" data-a="genlot">🎟 Générer le lot</button>
+        <p class="mut" style="margin-bottom:0">Après la génération : téléchargez le fichier <b>.rsc</b>, importez-le dans le routeur (Winbox → Files → glisser le fichier → New Terminal : <code>/import file-name=…</code>), puis imprimez les tickets.</p></div>
+      <h2>Derniers lots</h2><div class="card">${lots.length ? lots.map(l => { const lf = db.forfaits.find(x => x.id === l.fid) || { nom: 'Forfait supprimé', letter: '?' }, tk = lotCodes(l.id), left = tk.filter(t => t.status === 'stock').length; return `<div class="row" style="flex-wrap:wrap"><div class="g"><b>${esc(lf.nom)} × ${l.n}</b><small>${new Date(l.ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · ${left} restant(s), ${tk.length - left} vendu(s)</small></div><div class="bar" style="margin:0"><button class="btn sm sec" data-a="lotrsc" data-v="${l.id}">⬇ .rsc</button><button class="btn sm sec" data-a="lotprint" data-v="${l.id}">🖨️</button><button class="btn sm sec" data-a="lotcsv" data-v="${l.id}">CSV</button></div></div>`; }).join('') : '<div class="empty">Aucun lot généré.</div>'}</div>` };
+  };
+  // codes shown after a sale, to give to the client
+  const showCodes = (f, codes) => {
+    const msg = `🌐 ${db.name} — votre code WiFi (${f.nom}, ${f.duree}) :\n${codes.join('\n')}`;
+    modal('Codes à donner au client', `<p class="mut" style="margin-top:0">${esc(f.nom)} · ${esc(f.duree)}</p>${codes.map(c => `<div class="total" style="font-family:monospace;letter-spacing:3px;text-align:center">${esc(c)}</div>`).join('')}<div class="bar"><button type="button" class="btn" id="c_wa">💬 WhatsApp</button><button type="button" class="btn sec" id="c_cp">📋 Copier</button></div>`);
+    $('c_wa').onclick = () => share(msg); $('c_cp').onclick = () => copy(codes.join('\n'));
+  };
   views.sell = () => {
     const f = db.forfaits.find(x => x.id === st.fid), t = f ? f.prix * st.qty : 0, list = db.sales.filter(s => s.date === today()).sort((a, b) => b.ts - a.ts);
     return { title: 'Vendre', sub: fdate(today()), html: `
       <div class="fo">${db.forfaits.map(x => `<button class="${st.fid === x.id ? 'on' : ''}" style="--c:${fcol(x)}" data-a="fid" data-v="${esc(x.id)}">${esc(x.nom)}<small>${esc(x.duree)} · ${fmt(x.prix)}</small></button>`).join('')}</div>
+      ${f && hasLots(f.id) ? `<div class="card ${stockOf(f.id).length < (db.seuil || 0) ? 'warn' : ''}">🎟 En stock : <b>${stockOf(f.id).length}</b> ticket(s) ${esc(f.nom)} <button class="btn sm sec" data-a="tab" data-v="tix" style="float:right">Gérer</button></div>` : `<button class="btn sec sm" data-a="tab" data-v="tix" style="margin-bottom:10px">🎟 Tickets (stock, génération, impression)</button>`}
       <div class="card"><div class="qty"><button data-a="qty" data-v="-1">−</button><b>${st.qty}</b><button data-a="qty" data-v="1">+</button><span class="mut">ticket(s)</span></div>
         ${chips('mode', st.mode, MODES.map(m => [m, m]))}
         <div class="mut">Total à encaisser</div><div class="total">${fmt(t)}</div>
@@ -198,6 +248,8 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
   views.set = () => ({ title: 'Réglages', sub: db.name, html: `
     <div class="card"><label>Nom de l'activité</label><input id="s_name" value="${esc(db.name)}">
       <label>Taux du jour (1 $ = … FC)</label><input id="s_rate" type="number" inputmode="numeric" min="1" value="${db.rate}">
+      <label>Nom du serveur hotspot (routeur)</label><input id="s_server" value="${esc(db.server)}" autocapitalize="none">
+      <label>Alerte quand il reste moins de … tickets d'un forfait</label><input id="s_seuil" type="number" inputmode="numeric" min="0" value="${db.seuil}">
       <button class="btn full" data-a="saveset">Enregistrer</button></div>
     <h2>Forfaits et prix</h2><div class="card">${db.forfaits.map(f => `<div class="row"><div class="g"><b>${esc(f.nom)}</b><small>${esc(f.duree)}</small></div><b>${fmt(f.prix)}</b><button class="btn sm sec" data-a="editf" data-v="${esc(f.id)}">✎</button></div>`).join('')}<button class="btn sec full" data-a="newf">+ Ajouter un forfait</button></div>
     <h2>Importer les ventes de la caisse</h2><div class="card"><p class="mut" style="margin-top:0">Les tickets vendus par la <b>caisse locale</b> (routeur MikroTik) ou la <b>caisse simple</b> s'importent depuis leur fichier « Exporter en CSV ». Chaque ticket devient une vente ; un ticket déjà importé (même code) n'est jamais compté deux fois.</p>
@@ -214,7 +266,7 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
   const NAV = [['home', '🏠', 'Accueil'], ['sell', '🎫', 'Vendre'], ['exp', '💸', 'Dépenses'], ['day', '🌙', 'Clôture'], ['rep', '📊', 'Rapport'], ['set', '⚙️', 'Réglages']];
   const draw = () => {
     const v = views[st.tab](); $('ttl').textContent = v.title; $('sub').textContent = v.sub || ''; $('view').innerHTML = v.html;
-    $('nav').innerHTML = NAV.map(([k, i, t]) => `<button class="${st.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
+    $('nav').innerHTML = NAV.map(([k, i, t]) => `<button class="${(st.tab === 'tix' ? 'sell' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
     if ($('cdate')) $('cdate').onchange = () => { const d = $('cdate').value; if (d && d <= today()) { st.cd = d; draw(); } };
   };
 
@@ -222,7 +274,7 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
   // The whole data set is encrypted on the phone (AES-GCM, key derived from a passphrase) and stored as one opaque row
   // in the user's own Supabase project (same table and functions as CISPOLstore Manager, other workspace name).
   // Devices merge record by record against the last synced snapshot (three-way merge), so offline edits on several phones are combined.
-  const CKEY = 'wifizone-sync', COLL = ['sales', 'expenses', 'closings', 'forfaits'], SHARED = ['name', 'rate'], js = JSON.stringify;
+  const CKEY = 'wifizone-sync', COLL = ['sales', 'expenses', 'closings', 'forfaits', 'tickets', 'lots'], SHARED = ['name', 'rate', 'server', 'seuil'], js = JSON.stringify;
   let cfg = null; try { cfg = JSON.parse(localStorage.getItem(CKEY)); } catch (e) {}
   const saveCfg = () => { try { localStorage.setItem(CKEY, js(cfg)); } catch (e) {} };
   const SY = { status: cfg ? 'idle' : 'off', error: '', summary: '' };
@@ -373,6 +425,7 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
       let f = db.forfaits.find(x => x.nom.toLowerCase() === c[cF].toLowerCase());
       if (!f) { f = { id: uid(), ts: Date.now() + newF, nom: c[cF], duree: '', prix }; db.forfaits.push(f); newF++; }
       db.sales.push({ id, ts: new Date(date + 'T' + ((cH >= 0 && c[cH]) || '12:00').replace('h', ':') + ':00').getTime() || Date.now(), date, fid: f.id, qty: 1, amount: prix, mode, ref: code, note: cV >= 0 && c[cV] ? 'vendeur ' + c[cV] : 'caisse', src: 'caisse' });
+      if (code) { const tk = db.tickets.find(x => x.code === code && x.status === 'stock'); if (tk) { tk.status = 'sold'; tk.saleId = id; tk.soldAt = Date.now(); } }
       have.add(id); added++; total += prix;
     });
     save(); return { added, dup, newF, total };
@@ -382,16 +435,23 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
   const share = t => window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank', 'noopener');
   const copy = t => { const ok = () => toast('Copié'); try { navigator.clipboard.writeText(t).then(ok, () => prompt('Copiez :', t)); } catch (e) { prompt('Copiez :', t); } };
   const download = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
-  const forfaitForm = f => modal(f ? 'Modifier le forfait' : 'Nouveau forfait', `<label>Nom</label><input id="f_nom" value="${esc(f ? f.nom : '')}"><label>Durée (ex. 24 heures)</label><input id="f_duree" value="${esc(f ? f.duree : '')}"><label>Prix (FC)</label><input id="f_prix" type="number" inputmode="numeric" min="0" value="${f ? f.prix : ''}">${f ? '<button type="button" class="btn del full" id="f_del">Supprimer ce forfait</button>' : ''}`, () => {
+  const forfaitForm = f => modal(f ? 'Modifier le forfait' : 'Nouveau forfait', `<label>Nom</label><input id="f_nom" value="${esc(f ? f.nom : '')}"><label>Durée (ex. 24 heures)</label><input id="f_duree" value="${esc(f ? f.duree : '')}"><label>Prix (FC)</label><input id="f_prix" type="number" inputmode="numeric" min="0" value="${f ? f.prix : ''}"><label>Lettre du code (1re lettre des tickets)</label><input id="f_letter" maxlength="1" value="${esc(f ? f.letter : '')}" style="text-transform:uppercase"><label>Profil MikroTik (nom exact sur le routeur)</label><input id="f_profil" value="${esc(f ? f.profil : '')}" placeholder="Ex. Jour-24H" autocapitalize="none">${f ? '<button type="button" class="btn del full" id="f_del">Supprimer ce forfait</button>' : ''}`, () => {
     const nom = $('f_nom').value.trim(), prix = +$('f_prix').value; if (!nom || !(prix >= 0) || $('f_prix').value === '') { toast('Nom et prix requis'); return false; }
-    if (f) Object.assign(f, { nom, duree: $('f_duree').value.trim(), prix }); else db.forfaits.push({ id: uid(), ts: Date.now(), nom, duree: $('f_duree').value.trim(), prix });
+    const letter = ($('f_letter').value.trim().toUpperCase().replace(/[^A-Z]/g, '') || freeLetter(nom, f)).slice(0, 1), profil = $('f_profil').value.trim();
+    if (db.forfaits.some(x => x !== f && x.letter === letter)) { toast(`La lettre ${letter} est déjà prise par un autre forfait`); return false; }
+    if (f) { if (f.letter !== letter && hasLots(f.id)) { toast('La lettre ne peut plus changer : des tickets existent déjà'); return false; } Object.assign(f, { nom, duree: $('f_duree').value.trim(), prix, letter, profil }); } else db.forfaits.push({ id: uid(), ts: Date.now(), nom, duree: $('f_duree').value.trim(), prix, letter, profil });
     save(); draw();
   }) || (f && ($('f_del').onclick = () => { if (confirm('Supprimer ce forfait ? Les anciennes ventes sont conservées.')) { db.forfaits = db.forfaits.filter(x => x !== f); if (st.fid === f.id) st.fid = ''; save(); dlg.close(); draw(); } }));
   const A = {
     tab: v => { st.tab = v; draw(); window.scrollTo(0, 0); }, per: v => { st.per = v; draw(); }, goset: () => A.tab('set'),
     fid: v => { st.fid = v; draw(); }, qty: v => { st.qty = Math.max(1, st.qty + +v); draw(); }, mode: v => { st.mode = v; draw(); },
-    sell: () => { const f = db.forfaits.find(x => x.id === st.fid); if (!f) return; db.sales.push({ id: uid(), ts: Date.now(), date: today(), fid: f.id, qty: st.qty, amount: f.prix * st.qty, mode: st.mode, note: '' }); save(); toast(`Vente enregistrée : ${fmt(f.prix * st.qty)}`); st.qty = 1; draw(); },
-    delsale: v => { const s = db.sales.find(x => x.id === v); if (s && confirm(`Supprimer cette vente de ${fmt(s.amount)} ?`)) { db.sales = db.sales.filter(x => x !== s); save(); draw(); } },
+    sell: () => { const f = db.forfaits.find(x => x.id === st.fid); if (!f) return;
+      const avail = stockOf(f.id).sort(() => Math.random() - .5), take = avail.slice(0, st.qty); // random pick: two phones selling offline rarely take the same code
+      if (hasLots(f.id) && take.length < st.qty && !confirm(`Il ne reste que ${take.length} ticket(s) ${f.nom} en stock pour ${st.qty} demandé(s). Vendre quand même, sans code pour les autres ?`)) return;
+      const id = uid(); db.sales.push({ id, ts: Date.now(), date: today(), fid: f.id, qty: st.qty, amount: f.prix * st.qty, mode: st.mode, ref: take.map(t => t.code).join(' '), codes: take.map(t => t.code), note: '' });
+      take.forEach(t => { t.status = 'sold'; t.saleId = id; t.soldAt = Date.now(); });
+      save(); toast(`Vente enregistrée : ${fmt(f.prix * st.qty)}`); st.qty = 1; draw(); if (take.length) showCodes(f, take.map(t => t.code)); },
+    delsale: v => { const s = db.sales.find(x => x.id === v); if (s && confirm(`Supprimer cette vente de ${fmt(s.amount)} ?${(s.codes || []).length ? ' Les codes ' + s.codes.join(', ') + ' retournent en stock.' : ''}`)) { (s.codes || []).forEach(c => { const t = db.tickets.find(x => x.code === c); if (t) { t.status = 'stock'; delete t.saleId; delete t.soldAt; } }); db.sales = db.sales.filter(x => x !== s); save(); draw(); } },
     newexp: () => modal('Nouvelle dépense', `<label>Libellé</label><input id="e_label" placeholder="Ex. Recharge Starlink"><label>Catégorie</label><select id="e_cat">${CATS.map(c => `<option>${esc(c)}</option>`).join('')}</select>
       <div style="display:flex;gap:8px"><div style="flex:2"><label>Montant</label><input id="e_amt" type="number" inputmode="decimal" min="0"></div><div style="flex:1"><label>Devise</label><select id="e_cur"><option>CDF</option><option>USD</option></select></div></div>
       <label>Payé par</label><select id="e_mode">${MODES.map(m => `<option>${esc(m)}</option>`).join('')}</select><label>Date</label><input id="e_date" type="date" value="${today()}" max="${today()}">`, () => {
@@ -409,10 +469,20 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
     csv: () => { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`, x = monthData(st.rm), rows = [['Date', 'Type', 'Libellé', 'Mode', 'Devise', 'Montant', 'Équivalent FC'],
       ...x.S.map(s => [s.date, 'Vente', `${s.qty} × ${fname(s.fid)}`, s.mode, 'CDF', s.amount, s.amount]), ...x.E.map(e => [e.date, 'Dépense', e.label || e.cat, e.mode, e.cur, -e.amount, -expCDF(e)])].sort((a, b) => a[0].localeCompare(b[0]));
       download(`wifizone-${st.rm}.csv`, '﻿' + rows.map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
-    saveset: () => { const r = Math.round(+$('s_rate').value); if (!(r > 0)) return toast('Taux invalide'); db.name = $('s_name').value.trim() || 'WiFi Zone'; db.rate = r; save(); draw(); toast('Réglages enregistrés'); },
+    saveset: () => { const r = Math.round(+$('s_rate').value); if (!(r > 0)) return toast('Taux invalide'); db.name = $('s_name').value.trim() || 'WiFi Zone'; db.rate = r; db.server = $('s_server').value.trim() || 'hotspot-cispol'; db.seuil = Math.max(0, parseInt($('s_seuil').value, 10) || 0); save(); draw(); toast('Réglages enregistrés'); },
     newf: () => forfaitForm(null), editf: v => forfaitForm(db.forfaits.find(f => f.id === v)),
     backup: () => { db.lastBackup = Date.now(); save(); download(`wifizone-sauvegarde-${today()}.json`, JSON.stringify({ ...db, pin: null }), 'application/json'); draw(); toast('Sauvegarde téléchargée'); },
     impcsv: () => $('ifile').click(),
+    fixdup: () => { const d = dupSales(), done = [];
+      d.forEach(({ sale, code }) => { const f = db.forfaits.find(x => x.id === sale.fid), nt = f && stockOf(f.id)[0]; if (!nt) return; nt.status = 'sold'; nt.saleId = sale.id; nt.soldAt = Date.now(); sale.codes = sale.codes.map(c => c === code ? nt.code : c); sale.ref = sale.codes.join(' '); done.push({ f, code: nt.code, old: code }); });
+      save(); draw(); if (!done.length) return toast('Plus de ticket en stock : générez un lot');
+      modal('Nouveaux codes à donner', `<p class="mut" style="margin-top:0">Ces clients avaient reçu un code déjà vendu. Donnez-leur le nouveau code :</p>${done.map(x => `<div class="row"><div class="g"><small>${esc(x.f.nom)} · remplace ${esc(x.old)}</small></div><b style="font-family:monospace;font-size:20px">${esc(x.code)}</b></div>`).join('')}`); },
+    genlot: () => { const f = db.forfaits.find(x => x.id === $('t_f').value), n = Math.min(300, Math.max(1, parseInt($('t_n').value, 10) || 0)); if (!f) return;
+      if (!f.profil) return toast('Renseignez d\'abord le profil MikroTik de ce forfait (Réglages → ✎)'); st.tfid = f.id; st.tn = n;
+      const lot = genLot(f, n); draw(); download(`tickets-${f.nom}-${lot.id}.rsc`, rscOf(f, lot), 'text/plain;charset=utf-8'); toast(`${n} tickets ${f.nom} générés : importez le fichier .rsc dans le routeur`); },
+    lotrsc: v => { const l = db.lots.find(x => x.id === v), f = l && db.forfaits.find(x => x.id === l.fid); if (f) download(`tickets-${f.nom}-${l.id}.rsc`, rscOf(f, l), 'text/plain;charset=utf-8'); },
+    lotprint: v => { const l = db.lots.find(x => x.id === v), f = l && db.forfaits.find(x => x.id === l.fid); if (f) printLot(f, l); },
+    lotcsv: v => { const l = db.lots.find(x => x.id === v), f = l && db.forfaits.find(x => x.id === l.fid); if (f) download(`tickets-${f.nom}-${l.id}.csv`, '\ufeff' + ['Code;Forfait;Prix FC;Statut', ...lotCodes(l.id).map(t => `${t.code};${f.nom};${f.prix};${t.status === 'sold' ? 'Vendu' : 'En stock'}`)].join('\n'), 'text/csv'); },
     syncnow: async () => { toast('Synchronisation…'); toast(await SY.now()); },
     syncoff: () => { if (confirm('Déconnecter la synchronisation ? Les données restent sur ce téléphone.')) { SY.disconnect(); draw(); } },
     syncsql: () => { fetch('sync/supabase.sql').then(r => r.text()).then(t => { try { navigator.clipboard.writeText(t); toast('Script SQL copié'); } catch (e) { toast('Copie impossible'); } }).catch(() => toast('Script indisponible')); },

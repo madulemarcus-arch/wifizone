@@ -23,6 +23,18 @@ Adresse : `https://madulemarcus-arch.github.io/wifizone/` (dépôt `madulemarcus
 - Les données sont dans le navigateur de l'appareil (`localStorage`, clé `wifizone-v1`). **Faites une sauvegarde régulière** (Réglages) : l'accueil le rappelle après 3 jours.
 - Forfaits par défaut (repris de `caisse-locale`) : Visiteur 6 h 500 FC, Jour 24 h 1 000 FC, Semaine 7 j 7 000 FC, Mois 30 j 30 000 FC.
 
+## Tickets : génération et stock
+
+Onglet **Vendre** → **🎟 Tickets** (ou la ligne « En stock » quand un lot existe).
+
+- **Générer un lot** : choisir le forfait et le nombre (1 à 300). Chaque ticket est un code de 6 caractères : la **lettre du forfait** (V, J, S, M…) puis 5 caractères sans 0/O/1/I, unique parmi tous les tickets et ventes. Un fichier **`.rsc`** est téléchargé : une ligne `/ip hotspot user add name=CODE password=CODE profile=… server=…` par ticket, **sans commentaire** (le routeur y écrit lui-même l'expiration). Importer le fichier dans le routeur : Winbox → Files (glisser le fichier) → New Terminal → `/import file-name=…`.
+- **Imprimer** (🖨️) : planche A4 de tickets découpables (4 colonnes) ; **CSV** (Excel) : code, forfait, prix, statut.
+- **Stock** par forfait, alerte quand il reste moins de N tickets (réglable : Réglages, 10 par défaut), affichée sur l'accueil.
+- **Vente** : si le forfait a un stock, la vente prend automatiquement un code au hasard dans le stock, l'affiche en grand et propose **WhatsApp / Copier**. Supprimer la vente remet le code en stock. Un forfait sans lot se vend comme avant, sans code.
+- **Import des ventes de la caisse** : un ticket importé dont le code est en stock passe en « vendu ».
+- **Réglages → ✎ forfait** : *lettre du code* (unique, non modifiable une fois des tickets créés) et *profil MikroTik* (nom exact du profil sur le routeur : Visiteur-6H, Jour-24H, Semaine-7J, Mois-30J par défaut). Réglages : *nom du serveur hotspot* (`hotspot-cispol`).
+- **Plusieurs téléphones** : stock et lots se synchronisent. Si deux téléphones hors connexion vendent le même code, une alerte « code vendu deux fois » apparaît (accueil et onglet Tickets) ; un toucher donne un autre code au second client.
+
 ## Importer les ventes de la caisse (routeur MikroTik)
 
 WiFi Zone Manager ne parle pas directement au routeur (une application publiée sur Internet ne peut pas joindre le réseau local du routeur). Le lien se fait par le fichier d'export de la caisse : dans la **caisse locale** (`caisse-locale/`) ou la **caisse simple** (`caisse-simple/`), bouton **Exporter en CSV**, puis dans WiFi Zone Manager : Réglages → **Importer les ventes de la caisse** → choisir le mode de paiement des ventes importées → choisir le fichier.
