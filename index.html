@@ -51,6 +51,7 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
 .pad{display:grid;grid-template-columns:repeat(3,72px);gap:14px}.pad button{width:72px;height:72px;border-radius:50%;border:0;background:#ffffff22;color:#fff;font-size:24px;font-weight:600;cursor:pointer}.pad button:active{background:#ffffff55}
 #lock .lnk{background:none;border:0;color:#fff;opacity:.8;margin-top:18px;text-decoration:underline;font-size:14px;cursor:pointer}
 #syncBtn{background:none;border:0;color:#fff;font-size:20px;cursor:pointer;float:right;margin-top:-34px;padding:6px}
+#upd{position:fixed;left:12px;right:12px;bottom:92px;max-width:520px;margin:0 auto;z-index:30;display:flex;align-items:center;gap:10px;background:var(--navy);color:#fff;border-radius:12px;padding:10px 14px;box-shadow:0 4px 18px #0006}#upd span{flex:1;font-weight:600}
 #toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
 #toast.on{opacity:1}
 .empty{text-align:center;color:var(--mut);padding:24px 0}
@@ -73,7 +74,7 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1';
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v9'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -282,7 +283,9 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
       <div class="bar"><button class="btn" data-a="setpin">${db.pin ? 'Changer le code' : 'Créer un code PIN'}</button>${db.pin ? '<button class="btn sec" data-a="lockn">🔒 Verrouiller</button><button class="btn sec" data-a="rmpin">Supprimer</button>' : ''}</div></div>
     <h2>Sauvegarde</h2><div class="card"><p class="mut" style="margin-top:0">Vos données sont dans ce téléphone. ${db.lastBackup ? 'Dernière sauvegarde : ' + new Date(db.lastBackup).toLocaleString('fr-FR') : '<b class="warn">Aucune sauvegarde faite.</b>'}</p>
       <div class="bar"><button class="btn" data-a="backup">⬇ Sauvegarder</button><button class="btn sec" data-a="restore">⬆ Restaurer</button></div><input type="file" id="rfile" accept=".json,application/json" hidden></div>
-    <p class="mut" style="text-align:center">WiFi Zone Manager · version 1.0</p>` });
+    <h2>Application</h2><div class="card"><div class="row"><div class="g"><b>Version ${VERSION}</b><small>Si une nouveauté n'apparaît pas, forcez la mise à jour : l'application recharge sa dernière version (vos données ne sont pas touchées).</small></div></div>
+      <button class="btn full" data-a="update">🔄 Mettre à jour l'application</button></div>
+    <p class="mut" style="text-align:center">WiFi Zone Manager · ${VERSION}</p>` });
 
   const NAV = [['home', '🏠', 'Accueil'], ['sell', '🎫', 'Vendre'], ['exp', '💸', 'Dépenses'], ['day', '🌙', 'Clôture'], ['rep', '📊', 'Rapport'], ['set', '⚙️', 'Réglages']];
   const draw = () => {
@@ -527,6 +530,12 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
         SY.connect({ url: $('y_url').value, anon: $('y_anon').value, ws: $('y_ws').value, pass: $('y_pass').value }).then(r => { dlg.close(); toast('Synchronisation activée : ' + r); draw(); }).catch(e => { msg.textContent = e.message; btn.disabled = false; btn.textContent = 'Connecter'; });
         return false; }, 'Connecter'),
     setpin: () => verifyThen(newPin), lockn: () => unlockScreen(), rmpin: () => verifyThen(() => { if (confirm('Supprimer le code PIN ?')) { db.pin = null; save(); draw(); toast('Code PIN supprimé'); } else draw(); }),
+    // forget the cached copy of the app (service worker + caches, never the data) and reload the latest version
+    update: async () => { toast('Mise à jour…');
+      try { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(x => x.unregister())); } catch (e) {}
+      try { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('wifizone-')).map(k => caches.delete(k))); } catch (e) {}
+      location.replace(location.pathname + '?maj=' + Date.now()); },
+    reload: () => location.reload(),
     restore: () => $('rfile').click()
   };
   document.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b && A[b.dataset.a]) A[b.dataset.a](b.dataset.v); });
@@ -544,7 +553,12 @@ dialog::backdrop{background:#0008}dialog h3{margin:0 0 6px}
   });
   const sb = $('syncBtn'); if (sb) { setStatus(SY.status); sb.onclick = () => { if (!cfg) A.tab('set'); else A.syncnow(); }; }
   draw(); unlockScreen(); if (cfg) schedule(1500);
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    // a new version was installed in the background: offer to reload (the open page still shows the old one)
+    let hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { const first = !hadController; hadController = true; if (!first && !$('upd')) { const d = document.createElement('div'); d.id = 'upd'; d.className = 'noprint'; d.innerHTML = '<span>Nouvelle version disponible</span><button class="btn sm" data-a="reload">Actualiser</button>'; document.body.appendChild(d); } });
+    navigator.serviceWorker.register('sw.js').then(reg => reg.update().catch(() => {})).catch(() => {});
+  }
 })();
 </script>
 </body>
