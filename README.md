@@ -41,6 +41,17 @@ Onglet **🎟 Tickets** de la barre du bas (au centre, en bleu), ou le gros bout
 - **Supprimer un lot** : le bouton **🗑** de chaque lot (écran Tickets, « Derniers lots ») retire le lot et ses codes de l'application et des autres appareils synchronisés. Il est grisé dès qu'un ticket du lot est vendu (annulez d'abord la vente pour remettre le code en stock). Si le lot avait été importé dans le routeur, un fichier **`supprimer-lot-….rsc`** est téléchargé : une ligne `/ip hotspot user remove [find where name=CODE]` par ticket, à importer dans le routeur (comme un lot) pour y supprimer aussi ces codes.
 - **Plusieurs téléphones** : stock et lots se synchronisent. Si deux téléphones hors connexion vendent le même code, une alerte « code vendu deux fois » apparaît (accueil et onglet Tickets) ; un toucher donne un autre code au second client.
 
+## Tickets papier et tickets de l'application (deux stocks séparés)
+
+Un même code ne peut jamais être à la fois imprimé sur papier **et** donné par l'application.
+
+- **Destination du lot** : à la génération, choisir **📱 Vente dans l'application** ou **🖨️ Tickets papier**. Le lot garde sa destination (badge sur chaque lot). Le fichier `.rsc` est le même ; seule l'utilisation change.
+- **Deux stocks** : l'application ne distribue **que** les codes des lots « application » ; les codes des lots « papier » ne sortent jamais à l'écran de vente. L'écran Tickets affiche les deux compteurs (`🎟 … · 🖨️ papier : N`).
+- **Impression** : le bouton 🖨️ n'existe que sur les lots « papier » (refusé sur un lot « application »).
+- **Vendre un ticket papier** : écran Vendre → puce **🖨️ Ticket papier**. Avec le **code du ticket** (facultatif, pour une vente d'un seul ticket), ce ticket précis passe en « vendu » (refusé s'il est inconnu, déjà vendu ou de l'application). Sans code, les plus anciens tickets papier en stock sont comptés vendus. Aucun code n'est affiché au client ; la vente est marquée `🖨️ papier`.
+- **Annuler une vente papier** remet ses tickets en stock papier. Le CSV « Toutes les ventes » a une colonne **Support** (Papier / Application).
+- Alerte d'accueil quand le stock papier passe sous le seuil.
+
 ## Importer les ventes de la caisse (routeur MikroTik)
 
 WiFi Zone Manager ne parle pas directement au routeur (une application publiée sur Internet ne peut pas joindre le réseau local du routeur). Le lien se fait par le fichier d'export de la caisse : dans la **caisse locale** (`caisse-locale/`) ou la **caisse simple** (`caisse-simple/`), bouton **Exporter en CSV**, puis dans WiFi Zone Manager : Réglages → **Importer les ventes de la caisse** → choisir le mode de paiement des ventes importées → choisir le fichier.
