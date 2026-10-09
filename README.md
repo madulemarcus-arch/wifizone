@@ -61,6 +61,10 @@ Réglages → **Synchronisation entre téléphones** → Configurer (ou le bouto
 - Synchronisation automatique 4 secondes après chaque modification, au retour dans l'application, au retour de la connexion et toutes les 30 secondes ; bouton « Synchroniser maintenant ». Le bouton ☁️ indique l'état (☁️ à jour, 🔄 en cours, 📴 hors connexion, ⚠️ erreur).
 - Déconnecter garde toutes les données sur le téléphone.
 
+## Logo
+
+Le logo mélange la marque CispolStore et le signe du WiFi : le **« C »** de CispolStore (bleu marine / blanc) s'ouvre vers le haut à droite, le **cube hexagonal** orange en est le cœur, et **trois ondes dégradées jaune → orange** en jaillissent comme un signal WiFi. Fichiers à la racine : `logo.svg` (marque sans fond, pour l'en-tête et les écrans de connexion), `icon-192.png` / `icon-512.png` (icône de l'application, fond bleu marine), `icon-maskable-512.png` (version « maskable » d'Android, marque réduite dans la zone sûre). Dossier `brand/` (non publié) : sources vectorielles `logo-icone.svg` (fond sombre), `logo-clair.svg` (fond blanc), `logo-sans-fond-clair.svg` et versions PNG 1024 px, pour l'impression, les réseaux sociaux ou une enseigne. Le fichier de publication (`.github/workflows/pages.yml`) copie `*.png` et `logo.svg` : tout nouveau fichier d'image publié doit y figurer, et dans `FILES` de `sw.js`.
+
 ## Mise à jour de l'application
 
 L'application garde une copie pour fonctionner hors connexion : une nouvelle version est téléchargée en arrière-plan, puis une bannière **« Nouvelle version disponible — Actualiser »** apparaît. Si une nouveauté n'apparaît pas : **Réglages → Application → 🔄 Mettre à jour l'application**. Le bouton efface la copie en mémoire (service worker et caches `wifizone-*`) et recharge la dernière version ; **les données ne sont pas touchées**. Le numéro de version (`VERSION` dans `index.html`) doit rester identique à `CACHE` dans `sw.js` et être augmenté à chaque publication.
