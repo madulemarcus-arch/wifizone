@@ -112,7 +112,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v19'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v20'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -503,7 +503,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   // Roles are enforced in this app (they stop casual misuse, not someone who knows the sync passphrase).
   let me = null;
   const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix'], SELLER_ACTS = new Set(['tab', 'src', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn']);
-  const MAXG = 2; // the first two profiles are gérants, every profile added after them is a vendeur
+  const MAXG = 4, MING = 2; // up to 4 gérants (the first two are created at start-up); a vendeur is added with its own button
   const profilesOn = () => db.users.length > 0;
   const gerants = () => db.users.filter(u => u.role === 'gerant');
   // first start: nothing can be used before the gérants exist (unless profiles were switched off on purpose, or this device joins others through sync)
@@ -543,13 +543,13 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     if (profilesOn() && !me) return profileLock();
     if (me) { const u = db.users.find(x => x.id === me.id); if (!u) return profileLock(); me = u; if (!canView(st.tab)) st.tab = 'sell'; }
   };
-  const profilesCard = () => `<h2>Profils</h2><div class="card">${profilesOn() ? db.users.map(u => `<div class="row"><div class="g"><b>${esc(u.name)}</b><small>${ROLES[u.role]}</small></div><button class="btn sm sec" data-a="usedit" data-v="${esc(u.id)}">✎</button></div>`).join('') + `<div class="bar"><button class="btn sec" data-a="usnew">${gerants().length < MAXG ? '+ Ajouter le 2ᵉ gérant' : '+ Ajouter un vendeur'}</button><button class="btn sec" data-a="usoff">Désactiver</button></div><p class="mut" style="margin-bottom:0">${gerants().length < MAXG ? 'Le deuxième profil est un gérant. ' : 'Les deux gérants sont créés : les profils ajoutés sont des <b>vendeurs</b> (vendre seulement). '}Chacun se connecte en saisissant seulement son code PIN, qui doit être différent de ceux des autres.</p>` : `<p class="mut" style="margin-top:0">Sans profils, toute personne qui ouvre l'application peut tout faire. Avec les profils : <b>deux gérants</b> (tous les droits), puis des <b>vendeurs</b> qui ne peuvent que vendre. Chacun entre seulement son code PIN, et chaque vente porte le nom de son auteur.</p><button class="btn full" data-a="uson">Activer les profils</button>`}</div>`;
+  const profilesCard = () => `<h2>Profils</h2><div class="card">${profilesOn() ? db.users.map(u => `<div class="row"><div class="g"><b>${esc(u.name)}</b><small>${ROLES[u.role]}</small></div><button class="btn sm sec" data-a="usedit" data-v="${esc(u.id)}">✎</button></div>`).join('') + `<div class="bar">${gerants().length < MING ? '<button class="btn sec" data-a="usnew">+ Ajouter le 2ᵉ gérant</button>' : `<button class="btn sec" data-a="usnew">+ Ajouter un vendeur</button>${gerants().length < MAXG ? '<button class="btn sec" data-a="usnewg">+ Ajouter un gérant</button>' : ''}`}<button class="btn sec" data-a="usoff">Désactiver</button></div><p class="mut" style="margin-bottom:0">${gerants().length < MING ? 'Le deuxième profil est un gérant. ' : `Jusqu'à ${MAXG} gérants (${gerants().length} actuellement), par exemple un par téléphone ou ordinateur qui gère les tickets. Les autres profils sont des <b>vendeurs</b> (vendre seulement). `}Chacun se connecte en saisissant seulement son code PIN, qui doit être différent de ceux des autres.</p>` : `<p class="mut" style="margin-top:0">Sans profils, toute personne qui ouvre l'application peut tout faire. Avec les profils : <b>deux gérants</b> (tous les droits), puis des <b>vendeurs</b> qui ne peuvent que vendre. Chacun entre seulement son code PIN, et chaque vente porte le nom de son auteur.</p><button class="btn full" data-a="uson">Activer les profils</button>`}</div>`;
   const pinFields = pre => `<label>Code PIN (4 chiffres)${pre ? ' — laisser vide pour ne pas le changer' : ''}</label><input id="u_pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"><label>Confirmer le code PIN</label><input id="u_pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="off">`;
-  // mode: 'first' | 'second' (gérants) | 'vendeur' | undefined (edit); forced = part of the start-up chain, no way to cancel
+  // mode: 'first' | 'second' | 'gerant' (gérants) | 'vendeur' | undefined (edit); forced = part of the start-up chain, no way to cancel
   const userForm = (u, mode, forced, self) => {
     const lastMgr = !!u && u.role === 'gerant' && gerants().length <= 1, role = u ? u.role : (mode === 'vendeur' ? 'vendeur' : 'gerant');
-    const intro = { first: 'Premier gérant : tous les droits. Notez bien son code PIN.', second: 'Deuxième gérant : mêmes droits. Son code PIN doit être différent du premier.', vendeur: 'Vendeur : il peut vendre des tickets, rien d\'autre. Son code PIN doit être différent de ceux des autres.' }[mode] || '';
-    modal({ first: 'Premier gérant', second: 'Deuxième gérant', vendeur: 'Nouveau vendeur' }[mode] || 'Modifier le profil',
+    const intro = { first: 'Premier gérant : tous les droits. Notez bien son code PIN.', second: 'Deuxième gérant : mêmes droits. Son code PIN doit être différent du premier.', gerant: 'Nouveau gérant : tous les droits. Son code PIN doit être différent de ceux des autres.', vendeur: 'Vendeur : il peut vendre des tickets, rien d\'autre. Son code PIN doit être différent de ceux des autres.' }[mode] || '';
+    modal({ first: 'Premier gérant', second: 'Deuxième gérant', gerant: 'Nouveau gérant', vendeur: 'Nouveau vendeur' }[mode] || 'Modifier le profil',
       `${intro ? `<p class="mut" style="margin-top:0">${intro}</p>` : ''}<label>Nom</label><input id="u_name" value="${esc(u ? u.name : '')}" autocomplete="off">
        ${pinFields(!!u)}${u && !lastMgr ? '<button type="button" class="btn del full" id="u_del">Supprimer ce profil</button>' : ''}<p id="u_msg" class="warn"></p>`, () => {
       const name = $('u_name').value.trim(), pin = $('u_pin').value, pin2 = $('u_pin2').value, msg = $('u_msg');
@@ -685,7 +685,8 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
         SY.connect({ url: $('y_url').value, anon: $('y_anon').value, ws: $('y_ws').value, pass: $('y_pass').value }).then(r => { dlg.close(); toast('Synchronisation activée : ' + r); draw(); }).catch(e => { msg.textContent = e.message; btn.disabled = false; btn.textContent = 'Connecter'; });
         return false; }, 'Connecter'),
     uson: () => userForm(null, 'first', true),
-    usnew: () => userForm(null, gerants().length < MAXG ? 'second' : 'vendeur'),
+    usnew: () => userForm(null, gerants().length < MING ? 'second' : 'vendeur'),
+    usnewg: () => { if (gerants().length >= MAXG) return toast(`${MAXG} gérants au maximum`); userForm(null, 'gerant'); },
     usedit: v => userForm(db.users.find(x => x.id === v), false),
     usoff: () => { if (!confirm('Désactiver les profils ? Tout le monde aura de nouveau tous les droits, sans code PIN de profil.')) return; db.users = []; db.noProfiles = true; me = null; save(); draw(); toast('Profils désactivés'); },
     setpin: () => verifyThen(newPin), lockn: () => unlockScreen(), rmpin: () => verifyThen(() => { if (confirm('Supprimer le code PIN ?')) { db.pin = null; save(); draw(); toast('Code PIN supprimé'); } else draw(); }),
