@@ -84,6 +84,8 @@ dialog::backdrop{background:rgba(6,12,28,.55);backdrop-filter:blur(3px)}dialog h
 .pad{display:grid;grid-template-columns:repeat(3,72px);gap:14px}.pad button{width:72px;height:72px;border-radius:50%;border:0;background:#ffffff22;color:#fff;font-size:24px;font-weight:600;cursor:pointer}.pad button:active{background:#ffffff55}
 #lock .lnk{background:none;border:0;color:#fff;opacity:.8;margin-top:18px;text-decoration:underline;font-size:14px;cursor:pointer}
 #planche{display:none}
+#lockBtn{position:absolute;right:62px;top:calc(14px + env(safe-area-inset-top,0px));width:40px;height:40px;border-radius:14px;background:#ffffff1f;border:1px solid #ffffff26;color:#fff;font-size:17px;cursor:pointer;padding:0;display:none;place-items:center}
+.who{display:grid;gap:12px;width:min(340px,100%)}.who button{background:#ffffff1f;border:1px solid #ffffff2e;color:#fff;border-radius:18px;padding:16px;font-size:18px;font-weight:700;cursor:pointer;font-family:inherit}.who small{display:block;font-weight:500;opacity:.8;font-size:13px;margin-top:2px}
 #syncBtn{position:absolute;right:14px;top:calc(14px + env(safe-area-inset-top,0px));width:40px;height:40px;border-radius:14px;background:#ffffff1f;border:1px solid #ffffff26;color:#fff;font-size:19px;cursor:pointer;padding:0;display:grid;place-items:center;backdrop-filter:blur(6px)}
 #upd{position:fixed;left:12px;right:12px;bottom:96px;max-width:520px;margin:0 auto;z-index:30;display:flex;align-items:center;gap:10px;background:var(--navy);color:#fff;border-radius:16px;padding:12px 16px;box-shadow:0 12px 30px #0006}#upd span{flex:1;font-weight:600}
 #toast{position:fixed;left:50%;bottom:104px;transform:translateX(-50%) translateY(10px);background:#0c1a33ee;color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;box-shadow:0 10px 26px #0005;max-width:90vw;text-align:center}
@@ -98,7 +100,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 </style>
 </head>
 <body>
-<header><button id="syncBtn" title="Synchronisation" aria-label="Synchronisation">☁️</button><h1 id="ttl">WiFi Zone</h1><small id="sub"></small></header>
+<header><button id="lockBtn" title="Verrouiller / changer de profil" aria-label="Verrouiller">🔒</button><button id="syncBtn" title="Synchronisation" aria-label="Synchronisation">☁️</button><h1 id="ttl">WiFi Zone</h1><small id="sub"></small></header>
 <main id="view"></main>
 <nav id="nav"></nav>
 <dialog id="dlg"></dialog>
@@ -109,7 +111,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v12'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v15'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -121,7 +123,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const MODES = ['Cash', 'M-Pesa', 'Airtel Money', 'Orange Money', 'Banque'], CATS = ['Abonnement Starlink', 'Électricité / carburant', 'Salaire', 'Matériel / réparation', 'Papier / impression', 'Autre'];
   const blank = () => ({ v: 1, name: 'WiFi Zone', rate: 2400, lastBackup: '', pin: null, lockMin: 2, forfaits: [
     { id: 'V', nom: 'Visiteur', duree: '6 heures', prix: 500 }, { id: 'J', nom: 'Jour', duree: '24 heures', prix: 1000 },
-    { id: 'S', nom: 'Semaine', duree: '7 jours', prix: 7000 }, { id: 'M', nom: 'Mois', duree: '30 jours', prix: 30000 }], sales: [], expenses: [], closings: [], tickets: [], lots: [], server: 'hotspot-cispol', seuil: 10 });
+    { id: 'S', nom: 'Semaine', duree: '7 jours', prix: 7000 }, { id: 'M', nom: 'Mois', duree: '30 jours', prix: 30000 }], sales: [], expenses: [], closings: [], tickets: [], lots: [], users: [], noProfiles: false, server: 'hotspot-cispol', seuil: 10 });
   let db; try { db = { ...blank(), ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) { db = blank(); }
   // forfaits: stable order for sync, plus the ticket-code letter and the MikroTik profile (defaults follow the CISPOLstore router)
   const PROFILS = { V: 'Visiteur-6H', J: 'Jour-24H', S: 'Semaine-7J', M: 'Mois-30J' };
@@ -149,6 +151,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   // ---------- modal ----------
   const dlg = $('dlg');
   const modal = (title, body, onOk, okLabel = 'Enregistrer') => {
+    dlg.oncancel = null;
     dlg.innerHTML = `<form method="dialog"><h3>${esc(title)}</h3>${body}<div class="end"><button type="button" class="btn sec" id="dno">${onOk ? 'Annuler' : 'Fermer'}</button>${onOk ? `<button class="btn" id="dok">${okLabel}</button>` : ''}</div></form>`;
     $('dno').onclick = () => dlg.close();
     dlg.querySelector('form').onsubmit = e => { e.preventDefault(); if (onOk && onOk() === false) return; dlg.close(); };
@@ -159,6 +162,10 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   // ---------- views ----------
   const views = {};
   views.home = () => {
+    if (!isMgr()) { const mine = db.sales.filter(x => x.date === today() && x.by === (me && me.name));
+      return { title: db.name, sub: 'Bonjour ' + (me ? me.name : ''), html: `<button class="btn full" data-a="tab" data-v="sell" style="margin:0 0 12px">🎫 Vendre un ticket</button>
+        <div class="grid"><div class="stat"><small>Mes ventes aujourd'hui</small><b class="ok">${fmt(sum(mine, saleCDF))}</b><small>${sum(mine, x => x.qty)} ticket(s)</small></div><div class="stat"><small>Tickets en stock</small><b>${db.tickets.filter(t => t.status === 'stock' && lotImported(t.lot)).length}</b></div></div>
+        ${lowStock().length ? `<div class="card warn">🎟 Stock bas : ${lowStock().map(f => `${esc(f.nom)} (${stockOf(f.id).length})`).join(', ')}. Prévenez le gérant.</div>` : ''}` }; }
     const r = range(st.per), S = db.sales.filter(s => inR(s.date, r)), E = db.expenses.filter(e => inR(e.date, r));
     const inc = sum(S, saleCDF), out = sum(E, expCDF), net = inc - out, tickets = sum(S, s => s.qty);
     const byF = {}; S.forEach(s => { const o = byF[s.fid] = byF[s.fid] || { q: 0, a: 0 }; o.q += s.qty; o.a += s.amount; });
@@ -203,6 +210,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const pendBanner = () => pendingLots().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">📥 ${pendingLots().length} lot(s) de tickets pas encore importé(s) dans le routeur (${pendingLots().map(l => esc((db.forfaits.find(x => x.id === l.fid) || { nom: '?' }).nom) + ' × ' + l.n).join(', ')}). Ces codes ne sont pas vendus tant que vous n'avez pas coché « Importé ».</div>` : '';
   const dupBanner = () => dupSales().length ? `<div class="card warn" data-a="fixdup" style="cursor:pointer">⚠ ${dupSales().length} code(s) vendu(s) deux fois (${dupSales().map(d => esc(d.code)).join(', ')}). Touchez ici pour donner un autre code au second client.</div>` : '';
   views.tix = () => {
+    if (!isMgr()) return { title: 'Tickets', sub: 'Stock disponible', html: `<div class="card">${db.forfaits.map(x => { const n = stockOf(x.id).length, low = hasLots(x.id) && n < (db.seuil || 0); return `<div class="row"><div class="g"><b><span class="badge" style="background:${fcol(x)}">${esc(x.letter)}</span> ${esc(x.nom)}</b><small>${esc(x.duree)}</small></div><b class="${low ? 'bad' : n ? 'ok' : ''}">${n} ticket(s)${low ? ' ⚠' : ''}</b></div>`; }).join('')}</div><p class="mut">Seul le gérant génère et supprime les lots.</p>` };
     const f = db.forfaits.find(x => x.id === st.tfid) || db.forfaits[0], lots = db.lots.slice().sort((a, b) => b.ts - a.ts).slice(0, 12);
     return { title: 'Tickets', sub: 'Stock de codes WiFi', html: `
       ${dupBanner()}${pendBanner()}
@@ -220,7 +228,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     $('c_wa').onclick = () => share(msg); $('c_cp').onclick = () => copy(codes.join('\n'));
   };
   views.sell = () => {
-    const f = db.forfaits.find(x => x.id === st.fid), t = f ? f.prix * st.qty : 0, list = db.sales.filter(s => s.date === today()).sort((a, b) => b.ts - a.ts);
+    const f = db.forfaits.find(x => x.id === st.fid), t = f ? f.prix * st.qty : 0, list = db.sales.filter(s => s.date === today() && (isMgr() || s.by === (me && me.name))).sort((a, b) => b.ts - a.ts);
     return { title: 'Vendre', sub: fdate(today()), html: `
       <div class="fo">${db.forfaits.map(x => `<button class="${st.fid === x.id ? 'on' : ''}" style="--c:${fcol(x)}" data-a="fid" data-v="${esc(x.id)}">${esc(x.nom)}<small>${esc(x.duree)} · ${fmt(x.prix)}</small></button>`).join('')}</div>
       ${pendBanner()}
@@ -229,7 +237,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
         ${chips('mode', st.mode, MODES.map(m => [m, m]))}
         <div class="mut">Total à encaisser</div><div class="total">${fmt(t)}</div>
         <button class="btn full" data-a="sell" ${f ? '' : 'disabled style="opacity:.5"'}>✔ Enregistrer la vente</button></div>
-      <h2>Ventes d'aujourd'hui (${list.length}) <a data-a="tab" data-v="sales" style="float:right;text-transform:none;letter-spacing:0;color:var(--acc);cursor:pointer">Toutes les ventes ›</a></h2><div class="card">${list.length ? list.map(s => `<div class="row"><div class="g"><b>${s.qty} × ${esc(fname(s.fid))}</b><small>${esc(s.mode)}${s.ref ? ' · code ' + esc(s.ref) : ''}${s.note ? ' · ' + esc(s.note) : ''}</small></div><b>${fmt(s.amount)}</b><button class="btn sm sec" data-a="delsale" data-v="${s.id}">✕</button></div>`).join('') : '<div class="empty">Aucune vente pour le moment.</div>'}</div>` };
+      <h2>Ventes d'aujourd'hui (${list.length}) ${isMgr() ? '<a data-a="tab" data-v="sales" style="float:right;text-transform:none;letter-spacing:0;color:var(--acc);cursor:pointer">Toutes les ventes ›</a>' : ''}</h2><div class="card">${list.length ? list.map(s => `<div class="row"><div class="g"><b>${s.qty} × ${esc(fname(s.fid))}</b><small>${esc(s.mode)}${s.by ? ' · ' + esc(s.by) : ''}${s.ref ? ' · code ' + esc(s.ref) : ''}${s.note ? ' · ' + esc(s.note) : ''}</small></div><b>${fmt(s.amount)}</b>${isMgr() ? `<button class="btn sm sec" data-a="delsale" data-v="${s.id}">✕</button>` : ''}</div>`).join('') : '<div class="empty">Aucune vente pour le moment.</div>'}</div>` };
   };
   views.exp = () => {
     const r = range(st.per), E = db.expenses.filter(e => inR(e.date, r)).sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts);
@@ -258,6 +266,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
       <div class="bar noprint" style="margin:0 0 10px"><button class="btn sec sm" data-a="dnav" data-v="-1">‹ Veille</button><input type="date" id="cdate" value="${st.cd}" max="${today()}" style="flex:2;margin:0"><button class="btn sec sm" data-a="dnav" data-v="1" ${st.cd >= today() ? 'disabled' : ''}>Lendemain ›</button></div>
       <div class="grid"><div class="stat"><small>Ventes</small><b class="ok">${fmt(x.inc)}</b><small>${x.tickets} ticket(s)</small></div><div class="stat"><small>Dépenses</small><b class="bad">${fmt(x.out)}</b></div></div>
       <div class="card"><small class="mut">Bénéfice du jour</small><div class="total ${x.inc - x.out >= 0 ? 'ok' : 'bad'}">${fmt(x.inc - x.out)}</div></div>
+      ${(() => { const by = {}; x.S.forEach(v => { const k = v.by || '—'; const o = by[k] = by[k] || { q: 0, a: 0 }; o.q += v.qty; o.a += v.amount; }); const ks = Object.keys(by); return ks.length && ks.some(k => k !== '—') ? `<h2>Par profil</h2><div class="card">${ks.map(k => `<div class="row"><div class="g"><b>${k === '—' ? 'Sans profil' : esc(k)}</b><small>${by[k].q} ticket(s)</small></div><b>${fmt(by[k].a)}</b></div>`).join('')}</div>` : ''; })()}
       <h2>💵 Caisse (cash)</h2><div class="card"><div class="row"><div class="g">Cash attendu</div><b>${fmt(x.cash.CDF)}${Math.abs(x.cash.USD) > .004 ? ' + ' + fmt(x.cash.USD, 'USD') : ''}</b></div>
         <label>Cash compté (FC)</label><input id="ccount" type="number" inputmode="numeric" min="0" value="${cl ? cl.counted : ''}" placeholder="${nf(x.cash.CDF)}">
         <label>Note (facultatif)</label><input id="cnote" value="${esc(cl ? cl.note : '')}" placeholder="Ex. 2 000 FC pour le transport">
@@ -281,8 +290,8 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   // ---------- Detailed sales list (with ticket codes) ----------
   const hhmm = ts => new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const salesFiltered = () => { const r = st.sper === 'all' ? ['0000-00-00', '9999-99-99'] : range(st.sper), q = st.sq.trim().toLowerCase();
-    return db.sales.filter(x => inR(x.date, r) && (!q || [x.ref, fname(x.fid), x.mode, x.note, x.date, fdate(x.date)].join(' ').toLowerCase().includes(q))).sort((a, b) => b.ts - a.ts); };
-  const saleRows = l => l.length ? l.map(x => `<div class="row"><div class="g"><b>${x.qty} × ${esc(fname(x.fid))}${x.ref ? ` · <span style="font-family:monospace">${esc(x.ref)}</span>` : ''}</b><small>${fdate(x.date)} à ${hhmm(x.ts)} · ${esc(x.mode)}${x.note ? ' · ' + esc(x.note) : ''}</small></div><b>${fmt(x.amount)}</b><button class="btn sm sec" data-a="delsale" data-v="${x.id}">✕</button></div>`).join('') : '<div class="empty">Aucune vente trouvée.</div>';
+    return db.sales.filter(x => inR(x.date, r) && (!q || [x.ref, fname(x.fid), x.mode, x.note, x.by, x.date, fdate(x.date)].join(' ').toLowerCase().includes(q))).sort((a, b) => b.ts - a.ts); };
+  const saleRows = l => l.length ? l.map(x => `<div class="row"><div class="g"><b>${x.qty} × ${esc(fname(x.fid))}${x.ref ? ` · <span style="font-family:monospace">${esc(x.ref)}</span>` : ''}</b><small>${fdate(x.date)} à ${hhmm(x.ts)} · ${esc(x.mode)}${x.by ? ' · ' + esc(x.by) : ''}${x.note ? ' · ' + esc(x.note) : ''}</small></div><b>${fmt(x.amount)}</b><button class="btn sm sec" data-a="delsale" data-v="${x.id}">✕</button></div>`).join('') : '<div class="empty">Aucune vente trouvée.</div>';
   const salesTot = l => `${l.length} vente(s) · ${sum(l, x => x.qty)} ticket(s) · ${fmt(sum(l, saleCDF))}`;
   views.sales = () => { const l = salesFiltered(); return { title: 'Toutes les ventes', sub: 'Avec heure et code du ticket', html: `
     <button class="btn sec sm noprint" data-a="tab" data-v="rep" style="margin-bottom:10px">‹ Retour au rapport</button>
@@ -313,6 +322,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     <h2>Importer les ventes de la caisse</h2><div class="card"><p class="mut" style="margin-top:0">Les tickets vendus par la <b>caisse locale</b> (routeur MikroTik) ou la <b>caisse simple</b> s'importent depuis leur fichier « Exporter en CSV ». Chaque ticket devient une vente ; un ticket déjà importé (même code) n'est jamais compté deux fois.</p>
       <label>Mode de paiement des ventes importées</label><select id="i_mode">${MODES.map(m => `<option>${esc(m)}</option>`).join('')}</select>
       <button class="btn full" data-a="impcsv">⬆ Choisir le fichier CSV</button><input type="file" id="ifile" accept=".csv,text/csv" hidden></div>
+    ${profilesCard()}
     ${syncCard()}
     <h2>Sécurité</h2><div class="card"><div class="row"><div class="g"><b>Code PIN</b><small>${db.pin ? 'Activé : demandé à l\'ouverture' : 'Désactivé : tout le monde peut ouvrir l\'application'}</small></div></div>
       ${db.pin ? `<label>Verrouiller après</label><select id="s_lock"><option value="0" ${db.lockMin === 0 ? 'selected' : ''}>Dès que je quitte l'application</option><option value="2" ${db.lockMin === 2 ? 'selected' : ''}>2 minutes</option><option value="10" ${db.lockMin === 10 ? 'selected' : ''}>10 minutes</option></select>` : ''}
@@ -325,8 +335,9 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 
   const NAV = [['home', '🏠', 'Accueil'], ['sell', '🎫', 'Vendre'], ['tix', '🎟️', 'Tickets'], ['exp', '💸', 'Dépenses'], ['day', '🌙', 'Clôture'], ['rep', '📊', 'Rapport'], ['set', '⚙️', 'Réglages']];
   const draw = () => {
-    const v = views[st.tab](); $('ttl').textContent = v.title; $('sub').textContent = v.sub || ''; $('view').innerHTML = v.html;
-    $('nav').innerHTML = NAV.map(([k, i, t]) => `<button class="${(st.tab === 'sales' ? 'rep' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
+    if (!canView(st.tab)) st.tab = 'sell';
+    const v = views[st.tab](); $('ttl').textContent = v.title; $('sub').textContent = (v.sub || '') + (me ? ' · 👤 ' + me.name : ''); { const lb = $('lockBtn'); if (lb) lb.style.display = (db.pin || profilesOn()) ? 'grid' : 'none'; } $('view').innerHTML = v.html;
+    $('nav').innerHTML = NAV.filter(([k]) => canView(k)).map(([k, i, t]) => `<button class="${(st.tab === 'sales' ? 'rep' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
     if ($('sq')) $('sq').oninput = () => { st.sq = $('sq').value; const l = salesFiltered(); $('slist').innerHTML = saleRows(l); $('stot').textContent = salesTot(l); };
     if ($('cdate')) $('cdate').onchange = () => { const d = $('cdate').value; if (d && d <= today()) { st.cd = d; draw(); } };
   };
@@ -335,7 +346,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   // The whole data set is encrypted on the phone (AES-GCM, key derived from a passphrase) and stored as one opaque row
   // in the user's own Supabase project (same table and functions as CISPOLstore Manager, other workspace name).
   // Devices merge record by record against the last synced snapshot (three-way merge), so offline edits on several phones are combined.
-  const CKEY = 'wifizone-sync', COLL = ['sales', 'expenses', 'closings', 'forfaits', 'tickets', 'lots'], SHARED = ['name', 'rate', 'server', 'seuil'], js = JSON.stringify;
+  const CKEY = 'wifizone-sync', COLL = ['sales', 'expenses', 'closings', 'forfaits', 'tickets', 'lots', 'users'], SHARED = ['name', 'rate', 'server', 'seuil', 'noProfiles'], js = JSON.stringify;
   let cfg = null; try { cfg = JSON.parse(localStorage.getItem(CKEY)); } catch (e) {}
   const saveCfg = () => { try { localStorage.setItem(CKEY, js(cfg)); } catch (e) {} };
   const SY = { status: cfg ? 'idle' : 'off', error: '', summary: '' };
@@ -401,7 +412,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
         if (res.ok) { cfg.version = res.version; cfg.base = js(now); dirty = false; SY.summary = changed ? 'Échangé avec les autres appareils' : 'Envoyé'; break; }
         if (attempt === 3) throw new Error('Un autre appareil synchronise en même temps, réessayez');
       }
-      cfg.last = Date.now(); saveCfg(); setStatus('idle');
+      cfg.last = Date.now(); saveCfg(); setStatus('idle'); if (changed) syncProfiles();
       if ((changed || st.tab === 'set') && !dlg.open && !lockEl.classList.contains('on')) draw();
     } catch (e) {
       setStatus(e.offline || !navigator.onLine ? 'offline' : 'error', e.forbidden ? 'phrase secrète incorrecte' : e.message); SY.summary = ICONS[SY.status][1] + (SY.error ? ' : ' + SY.error : '');
@@ -440,12 +451,15 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     const L = lockState;
     lockEl.innerHTML = `<h2>${esc(L.title)}</h2><p id="lmsg">${esc(msg || '')}</p><div class="dots">${Array.from({ length: L.len }, (_, i) => `<i class="${i < L.buf.length ? 'f' : ''}"></i>`).join('')}</div>
       <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="x" style="font-size:16px">${L.cancel ? 'Annuler' : ''}</button><button data-k="0">0</button><button data-k="d">⌫</button></div>
-      ${L.mode === 'unlock' ? '<button class="lnk" data-k="forgot">Code oublié ?</button>' : ''}`;
+      ${L.mode === 'unlock' || (L.mode === 'profile' && L.role === 'gerant') ? '<button class="lnk" data-k="forgot">Code oublié ?</button>' : L.mode === 'profile' ? '<p style="opacity:.8;font-size:13px;margin-top:16px">Code oublié ? Demandez au gérant de le changer (Réglages → Profils).</p>' : ''}`;
     lockEl.classList.add('on');
   };
   // ask for a PIN: onDone(pin) is called once L.len digits are entered
   const askPin = (title, onDone, opts = {}) => { lockState = { ...lockState, buf: '', title, cb: onDone, mode: opts.mode || 'ask', cancel: !!opts.cancel, len: 4 }; drawLock(opts.msg); };
   const unlockScreen = () => {
+    if (profilesOn()) return profileLock();
+    if (needsWelcome()) return welcomeScreen();
+    me = null;
     if (!db.pin) { lockEl.classList.remove('on'); return; }
     askPin('WiFi Zone', async pin => {
       if (Date.now() < lockState.until) return drawLock(`Patientez ${Math.ceil((lockState.until - Date.now()) / 1000)} s`);
@@ -457,18 +471,83 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   lockEl.addEventListener('click', e => {
     const b = e.target.closest('[data-k]'); if (!b) return; const k = b.dataset.k, L = lockState;
     if (k === 'forgot') { if (confirm('Code oublié : la seule solution est d\'effacer les données de cette application sur cet appareil, puis de restaurer votre dernière sauvegarde (Réglages → Restaurer). Effacer maintenant ?')) { try { localStorage.removeItem(KEY); } catch (x) {} location.reload(); } return; }
-    if (k === 'x') { if (L.cancel) { lockEl.classList.remove('on'); lockEl.innerHTML = ''; } return; }
+    if (k.startsWith('u:')) return loginAs(k.slice(2));
+    if (k === 'w:new') return userForm(null, true);
+    if (k === 'w:join') return A.syncsetup();
+    if (k === 'x') { if (L.mode === 'profile') return profileLock(); if (L.cancel) { lockEl.classList.remove('on'); lockEl.innerHTML = ''; } return; }
     if (k === 'd') L.buf = L.buf.slice(0, -1); else if (L.buf.length < L.len) L.buf += k;
     drawLock(); if (L.buf.length === L.len) { const pin = L.buf, cb = L.cb; setTimeout(() => cb(pin), 120); }
   });
   let hiddenAt = 0;
-  document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (db.pin && hiddenAt && (Date.now() - hiddenAt) > (db.lockMin || 0) * 60000) unlockScreen(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if ((db.pin || profilesOn()) && hiddenAt && (Date.now() - hiddenAt) > (db.lockMin || 0) * 60000) unlockScreen(); });
   // set / change / remove the PIN (current PIN asked first when one exists)
   const verifyThen = fn => { if (!db.pin) return fn(); askPin('Code actuel', async pin => { if (await hashPin(pin, db.pin.salt) === db.pin.hash) { lockEl.classList.remove('on'); fn(); } else { lockState.buf = ''; drawLock('Code incorrect'); } }, { cancel: true, msg: 'Entrez votre code actuel' }); };
   const newPin = () => askPin('Nouveau code PIN', first => askPin('Confirmez le code', async again => {
     if (again !== first) { toast('Les deux codes sont différents'); return newPin(); }
     const salt = uid() + uid(); db.pin = { salt, hash: await hashPin(first, salt) }; save(); lockEl.classList.remove('on'); lockEl.innerHTML = ''; draw(); toast('Code PIN enregistré');
   }, { cancel: true, msg: 'Saisissez-le une deuxième fois' }), { cancel: true, msg: '4 chiffres' });
+
+  // ---------- Profiles: gérant (everything) and vendeur (sell only) ----------
+  // Profiles + PIN hashes sync between devices. Roles are enforced in this app (they stop casual misuse, not someone who knows the sync passphrase).
+  let me = null;
+  const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix'], SELLER_ACTS = new Set(['tab', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn']);
+  const profilesOn = () => db.users.length > 0;
+  // first start: nothing can be used before the manager's profile exists (unless profiles were switched off on purpose, or this device joins others through sync)
+  const needsWelcome = () => !profilesOn() && !db.noProfiles;
+  const welcomeScreen = () => {
+    me = null;
+    lockEl.innerHTML = `<h2>Bienvenue</h2><p style="max-width:330px;line-height:1.5">Avant de commencer, créez le profil du <b>gérant</b> : il a tous les droits et ajoutera ensuite les vendeurs.</p><div class="who"><button data-k="w:new">Créer le profil du gérant<small>Première installation</small></button><button data-k="w:join">Cet appareil rejoint les autres<small>Synchronisation : récupérer les profils existants</small></button></div>`;
+    lockEl.classList.add('on'); draw();
+  };
+  const isMgr = () => !profilesOn() || !!(me && me.role === 'gerant');
+  const canView = v => isMgr() || (!!me && SELLER_VIEWS.includes(v));
+  const canAct = a => isMgr() || (!!me && SELLER_ACTS.has(a));
+  const profileLock = () => {
+    me = null;
+    lockEl.innerHTML = `<h2>${esc(db.name)}</h2><p>Qui êtes-vous ?</p><div class="who">${db.users.slice().sort((a, b) => a.name.localeCompare(b.name)).map(u => `<button data-k="u:${esc(u.id)}">${esc(u.name)}<small>${ROLES[u.role] || ''}</small></button>`).join('')}</div>`;
+    lockEl.classList.add('on'); draw();
+  };
+  const loginAs = id => {
+    const u = db.users.find(x => x.id === id); if (!u) return profileLock();
+    askPin(u.name, async pin => {
+      if (Date.now() < lockState.until) return drawLock(`Patientez ${Math.ceil((lockState.until - Date.now()) / 1000)} s`);
+      if (await hashPin(pin, u.salt) === u.hash) { lockState.fails = 0; me = u; lockEl.classList.remove('on'); lockEl.innerHTML = ''; if (!canView(st.tab)) st.tab = 'sell'; draw(); return; }
+      lockState.fails++; lockState.buf = '';
+      if (lockState.fails >= 5) { lockState.until = Date.now() + 30000; lockState.fails = 0; drawLock('Trop d\'essais : attendez 30 secondes'); } else drawLock('Code incorrect');
+    }, { mode: 'profile', cancel: true, msg: 'Entrez votre code PIN' });
+    lockState.role = u.role; drawLock('Entrez votre code PIN');
+  };
+  // after a sync: a profile list that arrived from another device takes effect here; a changed or deleted profile is re-checked
+  const syncProfiles = () => {
+    if (!profilesOn() && !db.pin && !needsWelcome()) { lockEl.classList.remove('on'); lockEl.innerHTML = ''; me = null; return; }
+    if (profilesOn() && !me) return profileLock();
+    if (me) { const u = db.users.find(x => x.id === me.id); if (!u) return profileLock(); me = u; if (!canView(st.tab)) st.tab = 'sell'; }
+  };
+  const MAXP = 2; // two profiles at most, both gérants
+  const profilesCard = () => `<h2>Profils</h2><div class="card">${profilesOn() ? db.users.map(u => `<div class="row"><div class="g"><b>${esc(u.name)}</b><small>${ROLES[u.role]}</small></div><button class="btn sm sec" data-a="usedit" data-v="${esc(u.id)}">✎</button></div>`).join('') + `<div class="bar">${db.users.length < MAXP ? '<button class="btn sec" data-a="usnew">+ Ajouter le 2ᵉ gérant</button>' : ''}<button class="btn sec" data-a="usoff">Désactiver</button></div><p class="mut" style="margin-bottom:0">${db.users.length < MAXP ? 'Un deuxième gérant peut être ajouté (deux profils au maximum). ' : 'Les deux profils gérant sont créés (maximum atteint). '}Le code PIN d'appareil est remplacé par les profils tant qu'ils sont activés.</p>` : `<p class="mut" style="margin-top:0">Sans profils, toute personne qui ouvre l'application peut tout faire. Avec les profils, chaque <b>gérant</b> (deux au maximum) se connecte avec son nom et son code PIN, et chaque vente porte le nom de celui qui l'a faite.</p><button class="btn full" data-a="uson">Activer les profils</button>`}</div>`;
+  const pinFields = (pre) => `<label>Code PIN (4 chiffres)${pre ? ' — laisser vide pour ne pas le changer' : ''}</label><input id="u_pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"><label>Confirmer le code PIN</label><input id="u_pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="off">`;
+  const userForm = (u, first) => {
+    const mgrs = db.users.filter(x => x.role === 'gerant').length, lastMgr = u && u.role === 'gerant' && mgrs <= 1;
+    modal(first ? 'Premier profil : le gérant' : u ? 'Modifier le profil' : 'Deuxième gérant',
+      `${first ? '<p class="mut" style="margin-top:0">Ce profil a tous les droits. Notez bien son code PIN.</p>' : ''}<label>Nom</label><input id="u_name" value="${esc(u ? u.name : '')}" autocomplete="off">
+       
+       ${pinFields(!!u)}${u && !lastMgr ? '<button type="button" class="btn del full" id="u_del">Supprimer ce profil</button>' : ''}<p id="u_msg" class="warn"></p>`, () => {
+      const name = $('u_name').value.trim(), pin = $('u_pin').value, pin2 = $('u_pin2').value, role = 'gerant', msg = $('u_msg');
+      if (!name) { msg.textContent = 'Saisissez un nom'; return false; }
+      if (db.users.some(x => x !== u && x.name.toLowerCase() === name.toLowerCase())) { msg.textContent = 'Ce nom existe déjà'; return false; }
+      if ((!u || pin) && !/^\d{4}$/.test(pin)) { msg.textContent = 'Le code PIN doit avoir 4 chiffres'; return false; }
+      if (pin !== pin2) { msg.textContent = 'Les deux codes sont différents'; return false; }
+      (async () => {
+        const rec = u || { id: uid(), ts: Date.now() };
+        Object.assign(rec, { name, role }); if (pin) { rec.salt = uid() + uid(); rec.hash = await hashPin(pin, rec.salt); }
+        if (!u) db.users.push(rec); if (first) { me = rec; db.noProfiles = false; lockEl.classList.remove('on'); lockEl.innerHTML = ''; } if (me && me.id === rec.id) me = rec;
+        save(); dlg.close(); draw(); toast(first ? 'Profils activés' : 'Profil enregistré');
+      })();
+      return false;
+    }, 'Enregistrer');
+    if (first) { $('dno').style.display = 'none'; dlg.oncancel = e => e.preventDefault(); } else dlg.oncancel = null;
+    if ($('u_del')) $('u_del').onclick = () => { if (!confirm(`Supprimer le profil ${u.name} ? Ses ventes passées sont conservées.`)) return; db.users = db.users.filter(x => x !== u); if (me && me.id === u.id) me = null; save(); dlg.close(); if (!me) profileLock(); draw(); };
+  };
 
   // ---------- Import of ticket sales exported by the cashier tools (caisse-locale / caisse-simple CSV) ----------
   const parseCsv = txt => txt.replace(/^\ufeff/, '').split(/\r?\n/).filter(l => l.trim()).map(l => l.split(';').map(c => c.trim().replace(/^"|"$/g, '')));
@@ -509,7 +588,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     sell: () => { const f = db.forfaits.find(x => x.id === st.fid); if (!f) return;
       const avail = stockOf(f.id).sort(() => Math.random() - .5), take = avail.slice(0, st.qty); // random pick: two phones selling offline rarely take the same code
       if (hasLots(f.id) && take.length < st.qty && !confirm(`Il ne reste que ${take.length} ticket(s) ${f.nom} en stock pour ${st.qty} demandé(s). Vendre quand même, sans code pour les autres ?`)) return;
-      const id = uid(); db.sales.push({ id, ts: Date.now(), date: today(), fid: f.id, qty: st.qty, amount: f.prix * st.qty, mode: st.mode, ref: take.map(t => t.code).join(' '), codes: take.map(t => t.code), note: '' });
+      const id = uid(); db.sales.push({ id, ts: Date.now(), date: today(), fid: f.id, qty: st.qty, amount: f.prix * st.qty, mode: st.mode, ref: take.map(t => t.code).join(' '), codes: take.map(t => t.code), note: '', by: me ? me.name : '' });
       take.forEach(t => { t.status = 'sold'; t.saleId = id; t.soldAt = Date.now(); });
       save(); toast(`Vente enregistrée : ${fmt(f.prix * st.qty)}`); st.qty = 1; draw(); if (take.length) showCodes(f, take.map(t => t.code)); },
     delsale: v => { const s = db.sales.find(x => x.id === v); if (s && confirm(`Supprimer cette vente de ${fmt(s.amount)} ?${(s.codes || []).length ? ' Les codes ' + s.codes.join(', ') + ' retournent en stock.' : ''}`)) { (s.codes || []).forEach(c => { const t = db.tickets.find(x => x.code === c); if (t) { t.status = 'stock'; delete t.saleId; delete t.soldAt; } }); db.sales = db.sales.filter(x => x !== s); save(); draw(); } },
@@ -529,7 +608,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     mwa: () => share(monthText(monthData(st.rm))),
     sper: v => { st.sper = v; draw(); },
     salescsv: () => { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`, l = salesFiltered().slice().reverse();
-      download(`wifizone-ventes-${st.sper}-${today()}.csv`, '\ufeff' + [['Date', 'Heure', 'Forfait', 'Quantité', 'Code', 'Mode', 'Montant FC', 'Note'], ...l.map(x => [x.date, hhmm(x.ts), fname(x.fid), x.qty, x.ref || '', x.mode, x.amount, x.note || ''])].map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
+      download(`wifizone-ventes-${st.sper}-${today()}.csv`, '\ufeff' + [['Date', 'Heure', 'Forfait', 'Quantité', 'Code', 'Mode', 'Vendeur', 'Montant FC', 'Note'], ...l.map(x => [x.date, hhmm(x.ts), fname(x.fid), x.qty, x.ref || '', x.mode, x.by || '', x.amount, x.note || ''])].map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
     csv: () => { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`, x = monthData(st.rm), rows = [['Date', 'Heure', 'Type', 'Libellé', 'Code', 'Mode', 'Devise', 'Montant', 'Équivalent FC'],
       ...x.S.map(s => [s.date, hhmm(s.ts), 'Vente', `${s.qty} × ${fname(s.fid)}`, s.ref || '', s.mode, 'CDF', s.amount, s.amount]), ...x.E.map(e => [e.date, hhmm(e.ts || 0), 'Dépense', e.label || e.cat, '', e.mode, e.cur, -e.amount, -expCDF(e)])].sort((a, b) => a[0].localeCompare(b[0]));
       download(`wifizone-${st.rm}.csv`, '﻿' + rows.map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
@@ -572,6 +651,10 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
         const msg = $('y_msg'), btn = $('dok'); msg.textContent = ''; btn.disabled = true; btn.textContent = 'Connexion…';
         SY.connect({ url: $('y_url').value, anon: $('y_anon').value, ws: $('y_ws').value, pass: $('y_pass').value }).then(r => { dlg.close(); toast('Synchronisation activée : ' + r); draw(); }).catch(e => { msg.textContent = e.message; btn.disabled = false; btn.textContent = 'Connecter'; });
         return false; }, 'Connecter'),
+    uson: () => userForm(null, true),
+    usnew: () => { if (db.users.length >= MAXP) return toast('Deux profils au maximum (deux gérants)'); userForm(null, false); },
+    usedit: v => userForm(db.users.find(x => x.id === v), false),
+    usoff: () => { if (!confirm('Désactiver les profils ? Tout le monde aura de nouveau tous les droits, sans code PIN de profil.')) return; db.users = []; db.noProfiles = true; me = null; save(); draw(); toast('Profils désactivés'); },
     setpin: () => verifyThen(newPin), lockn: () => unlockScreen(), rmpin: () => verifyThen(() => { if (confirm('Supprimer le code PIN ?')) { db.pin = null; save(); draw(); toast('Code PIN supprimé'); } else draw(); }),
     // forget the cached copy of the app (service worker + caches, never the data) and reload the latest version
     update: async () => { toast('Mise à jour…');
@@ -581,7 +664,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     reload: () => location.reload(),
     restore: () => $('rfile').click()
   };
-  document.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b && A[b.dataset.a]) A[b.dataset.a](b.dataset.v); });
+  document.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b && A[b.dataset.a]) { if (!canAct(b.dataset.a)) return toast('Action réservée au gérant'); A[b.dataset.a](b.dataset.v); } });
   document.addEventListener('change', e => {
     if (e.target.id === 'ifile' && e.target.files[0]) {
       const mode = $('i_mode').value, rd = new FileReader();
@@ -594,6 +677,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
       if (!confirm(`Remplacer les données actuelles par cette sauvegarde (${d.sales.length} vente(s), ${d.expenses.length} dépense(s)) ?`)) return; db = { ...blank(), ...d, pin: db.pin, lockMin: db.lockMin }; save(); draw(); toast('Sauvegarde restaurée'); } catch (x) { toast('Fichier invalide'); } };
     rd.readAsText(e.target.files[0]); e.target.value = '';
   });
+  { const lb = $('lockBtn'); if (lb) lb.onclick = () => A.lockn(); }
   const sb = $('syncBtn'); if (sb) { setStatus(SY.status); sb.onclick = () => { if (!cfg) A.tab('set'); else A.syncnow(); }; }
   draw(); unlockScreen(); if (cfg) schedule(1500);
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
