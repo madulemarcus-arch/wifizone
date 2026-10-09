@@ -111,7 +111,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v14'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v15'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -266,7 +266,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
       <div class="bar noprint" style="margin:0 0 10px"><button class="btn sec sm" data-a="dnav" data-v="-1">‹ Veille</button><input type="date" id="cdate" value="${st.cd}" max="${today()}" style="flex:2;margin:0"><button class="btn sec sm" data-a="dnav" data-v="1" ${st.cd >= today() ? 'disabled' : ''}>Lendemain ›</button></div>
       <div class="grid"><div class="stat"><small>Ventes</small><b class="ok">${fmt(x.inc)}</b><small>${x.tickets} ticket(s)</small></div><div class="stat"><small>Dépenses</small><b class="bad">${fmt(x.out)}</b></div></div>
       <div class="card"><small class="mut">Bénéfice du jour</small><div class="total ${x.inc - x.out >= 0 ? 'ok' : 'bad'}">${fmt(x.inc - x.out)}</div></div>
-      ${(() => { const by = {}; x.S.forEach(v => { const k = v.by || '—'; const o = by[k] = by[k] || { q: 0, a: 0 }; o.q += v.qty; o.a += v.amount; }); const ks = Object.keys(by); return ks.length && ks.some(k => k !== '—') ? `<h2>Par vendeur</h2><div class="card">${ks.map(k => `<div class="row"><div class="g"><b>${k === '—' ? 'Sans vendeur' : esc(k)}</b><small>${by[k].q} ticket(s)</small></div><b>${fmt(by[k].a)}</b></div>`).join('')}</div>` : ''; })()}
+      ${(() => { const by = {}; x.S.forEach(v => { const k = v.by || '—'; const o = by[k] = by[k] || { q: 0, a: 0 }; o.q += v.qty; o.a += v.amount; }); const ks = Object.keys(by); return ks.length && ks.some(k => k !== '—') ? `<h2>Par profil</h2><div class="card">${ks.map(k => `<div class="row"><div class="g"><b>${k === '—' ? 'Sans profil' : esc(k)}</b><small>${by[k].q} ticket(s)</small></div><b>${fmt(by[k].a)}</b></div>`).join('')}</div>` : ''; })()}
       <h2>💵 Caisse (cash)</h2><div class="card"><div class="row"><div class="g">Cash attendu</div><b>${fmt(x.cash.CDF)}${Math.abs(x.cash.USD) > .004 ? ' + ' + fmt(x.cash.USD, 'USD') : ''}</b></div>
         <label>Cash compté (FC)</label><input id="ccount" type="number" inputmode="numeric" min="0" value="${cl ? cl.counted : ''}" placeholder="${nf(x.cash.CDF)}">
         <label>Note (facultatif)</label><input id="cnote" value="${esc(cl ? cl.note : '')}" placeholder="Ex. 2 000 FC pour le transport">
@@ -523,15 +523,16 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     if (profilesOn() && !me) return profileLock();
     if (me) { const u = db.users.find(x => x.id === me.id); if (!u) return profileLock(); me = u; if (!canView(st.tab)) st.tab = 'sell'; }
   };
-  const profilesCard = () => `<h2>Profils</h2><div class="card">${profilesOn() ? db.users.map(u => `<div class="row"><div class="g"><b>${esc(u.name)}</b><small>${ROLES[u.role]}</small></div><button class="btn sm sec" data-a="usedit" data-v="${esc(u.id)}">✎</button></div>`).join('') + `<div class="bar"><button class="btn sec" data-a="usnew">+ Ajouter un profil</button><button class="btn sec" data-a="usoff">Désactiver</button></div><p class="mut" style="margin-bottom:0">Le code PIN de l'appareil est remplacé par les profils tant qu'ils sont activés.</p>` : `<p class="mut" style="margin-top:0">Sans profils, toute personne qui ouvre l'application peut tout faire. Avec les profils, le <b>gérant</b> fait tout ; le <b>vendeur</b> ne peut que vendre : il ne génère pas de lots, ne change pas les prix et ne voit ni les dépenses ni les bénéfices. Chacun a son code PIN, et chaque vente porte le nom du vendeur.</p><button class="btn full" data-a="uson">Activer les profils</button>`}</div>`;
+  const MAXP = 2; // two profiles at most, both gérants
+  const profilesCard = () => `<h2>Profils</h2><div class="card">${profilesOn() ? db.users.map(u => `<div class="row"><div class="g"><b>${esc(u.name)}</b><small>${ROLES[u.role]}</small></div><button class="btn sm sec" data-a="usedit" data-v="${esc(u.id)}">✎</button></div>`).join('') + `<div class="bar">${db.users.length < MAXP ? '<button class="btn sec" data-a="usnew">+ Ajouter le 2ᵉ gérant</button>' : ''}<button class="btn sec" data-a="usoff">Désactiver</button></div><p class="mut" style="margin-bottom:0">${db.users.length < MAXP ? 'Un deuxième gérant peut être ajouté (deux profils au maximum). ' : 'Les deux profils gérant sont créés (maximum atteint). '}Le code PIN d'appareil est remplacé par les profils tant qu'ils sont activés.</p>` : `<p class="mut" style="margin-top:0">Sans profils, toute personne qui ouvre l'application peut tout faire. Avec les profils, chaque <b>gérant</b> (deux au maximum) se connecte avec son nom et son code PIN, et chaque vente porte le nom de celui qui l'a faite.</p><button class="btn full" data-a="uson">Activer les profils</button>`}</div>`;
   const pinFields = (pre) => `<label>Code PIN (4 chiffres)${pre ? ' — laisser vide pour ne pas le changer' : ''}</label><input id="u_pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"><label>Confirmer le code PIN</label><input id="u_pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="off">`;
   const userForm = (u, first) => {
     const mgrs = db.users.filter(x => x.role === 'gerant').length, lastMgr = u && u.role === 'gerant' && mgrs <= 1;
-    modal(first ? 'Premier profil : le gérant' : u ? 'Modifier le profil' : 'Nouveau profil',
+    modal(first ? 'Premier profil : le gérant' : u ? 'Modifier le profil' : 'Deuxième gérant',
       `${first ? '<p class="mut" style="margin-top:0">Ce profil a tous les droits. Notez bien son code PIN.</p>' : ''}<label>Nom</label><input id="u_name" value="${esc(u ? u.name : '')}" autocomplete="off">
-       ${first ? '' : `<label>Rôle</label><select id="u_role" ${lastMgr ? 'disabled' : ''}><option value="vendeur" ${u && u.role === 'vendeur' ? 'selected' : ''}>Vendeur (vendre seulement)</option><option value="gerant" ${u && u.role === 'gerant' ? 'selected' : ''}>Gérant (tous les droits)</option></select>`}
+       
        ${pinFields(!!u)}${u && !lastMgr ? '<button type="button" class="btn del full" id="u_del">Supprimer ce profil</button>' : ''}<p id="u_msg" class="warn"></p>`, () => {
-      const name = $('u_name').value.trim(), pin = $('u_pin').value, pin2 = $('u_pin2').value, role = first ? 'gerant' : (lastMgr ? 'gerant' : $('u_role').value), msg = $('u_msg');
+      const name = $('u_name').value.trim(), pin = $('u_pin').value, pin2 = $('u_pin2').value, role = 'gerant', msg = $('u_msg');
       if (!name) { msg.textContent = 'Saisissez un nom'; return false; }
       if (db.users.some(x => x !== u && x.name.toLowerCase() === name.toLowerCase())) { msg.textContent = 'Ce nom existe déjà'; return false; }
       if ((!u || pin) && !/^\d{4}$/.test(pin)) { msg.textContent = 'Le code PIN doit avoir 4 chiffres'; return false; }
@@ -651,7 +652,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
         SY.connect({ url: $('y_url').value, anon: $('y_anon').value, ws: $('y_ws').value, pass: $('y_pass').value }).then(r => { dlg.close(); toast('Synchronisation activée : ' + r); draw(); }).catch(e => { msg.textContent = e.message; btn.disabled = false; btn.textContent = 'Connecter'; });
         return false; }, 'Connecter'),
     uson: () => userForm(null, true),
-    usnew: () => userForm(null, false),
+    usnew: () => { if (db.users.length >= MAXP) return toast('Deux profils au maximum (deux gérants)'); userForm(null, false); },
     usedit: v => userForm(db.users.find(x => x.id === v), false),
     usoff: () => { if (!confirm('Désactiver les profils ? Tout le monde aura de nouveau tous les droits, sans code PIN de profil.')) return; db.users = []; db.noProfiles = true; me = null; save(); draw(); toast('Profils désactivés'); },
     setpin: () => verifyThen(newPin), lockn: () => unlockScreen(), rmpin: () => verifyThen(() => { if (confirm('Supprimer le code PIN ?')) { db.pin = null; save(); draw(); toast('Code PIN supprimé'); } else draw(); }),
