@@ -69,6 +69,8 @@ L'application garde une copie pour fonctionner hors connexion : une nouvelle ver
 
 Réglages → **Profils** → **Activer les profils** : crée d'abord le **gérant** (nom + code PIN à 4 chiffres, saisi deux fois). Le gérant ajoute ensuite les autres personnes (**+ Ajouter un profil** : nom, rôle, code PIN) et peut les modifier (changer le nom, le rôle, le code) ou les supprimer ; le dernier gérant ne peut pas être supprimé ni rétrogradé. **Désactiver** les profils redonne tous les droits à tout le monde.
 
+**Dès la première ouverture**, avant toute autre chose, l'application affiche **« Bienvenue »** et impose de **créer le profil du gérant** (la fenêtre n'a pas de bouton Annuler et ne se ferme pas avec Échap) : rien n'est utilisable tant qu'il n'existe pas. Un appareil qui **rejoint les autres** choisit à la place **« Cet appareil rejoint les autres »** : il ouvre la configuration de la synchronisation et récupère les profils existants (pas de second gérant à créer). Si le gérant **désactive les profils volontairement**, l'application ne le redemande plus (réglage synchronisé entre appareils).
+
 À l'ouverture (et après verrouillage, bouton 🔒 de l'en-tête), l'application demande **« Qui êtes-vous ? »** puis le code PIN du profil choisi ; 5 erreurs bloquent 30 secondes. Les profils (avec les codes sous forme d'empreintes) se **synchronisent** : un appareil qui reçoit des profils se verrouille aussitôt sur l'écran de choix. Le code PIN d'appareil des Réglages est remplacé par les profils tant qu'ils sont actifs.
 
 | | Gérant | Vendeur |
