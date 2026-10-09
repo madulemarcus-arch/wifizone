@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1f44">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>WiFi Zone Manager</title>
 <style>
@@ -28,8 +29,8 @@ html{scroll-behavior:smooth}
 body{margin:0;font:16px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1200px 500px at 50% -120px,var(--bg2),var(--bg)) fixed;color:var(--txt);padding-bottom:112px;-webkit-font-smoothing:antialiased}
 header{position:sticky;top:0;z-index:5;color:#fff;padding:16px 20px 20px;padding-top:calc(16px + env(safe-area-inset-top,0px));background:radial-gradient(500px 220px at 85% -40%,#3b82f655,transparent),linear-gradient(135deg,var(--navy),var(--navy2));border-radius:0 0 26px 26px;box-shadow:0 8px 24px rgba(10,31,68,.28)}
 header h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
-header h1::before{content:"";width:30px;height:30px;border-radius:10px;flex:none;background:#ffffff1f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M2.5 9a14 14 0 0 1 19 0'/%3E%3Cpath d='M5.5 12.5a9.5 9.5 0 0 1 13 0'/%3E%3Cpath d='M8.8 16a5 5 0 0 1 6.4 0'/%3E%3Ccircle cx='12' cy='19.3' r='1' fill='white'/%3E%3C/svg%3E") center/20px no-repeat}
-header small{opacity:.8;font-size:13px;display:block;margin:2px 0 0 40px}
+header h1::before{content:"";width:38px;height:38px;flex:none;background:url(logo.svg) center/contain no-repeat;filter:drop-shadow(0 2px 6px #0006)}
+header small{opacity:.8;font-size:13px;display:block;margin:2px 0 0 48px}
 main{max-width:660px;margin:auto;padding:16px 16px 8px}
 main>*{animation:rise .28s ease both}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -111,7 +112,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v17'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v18'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -449,7 +450,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const lockEl = $('lock');
   const drawLock = (msg) => {
     const L = lockState;
-    lockEl.innerHTML = `<h2>${esc(L.title)}</h2><p id="lmsg">${esc(msg || '')}</p><div class="dots">${Array.from({ length: L.len }, (_, i) => `<i class="${i < L.buf.length ? 'f' : ''}"></i>`).join('')}</div>
+    lockEl.innerHTML = `<img src="logo.svg" alt="" style="width:84px;height:84px;margin-bottom:6px"><h2>${esc(L.title)}</h2><p id="lmsg">${esc(msg || '')}</p><div class="dots">${Array.from({ length: L.len }, (_, i) => `<i class="${i < L.buf.length ? 'f' : ''}"></i>`).join('')}</div>
       <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="x" style="font-size:16px">${L.cancel ? 'Annuler' : ''}</button><button data-k="0">0</button><button data-k="d">⌫</button></div>
       ${L.mode === 'unlock' ? '<button class="lnk" data-k="forgot">Code oublié ?</button>' : L.mode === 'profile' ? '<button class="lnk" data-k="newv">Nouveau vendeur ? S\'enregistrer</button><p style="opacity:.8;font-size:13px;margin-top:10px;max-width:300px">Code oublié ? Un gérant peut le changer (Réglages → Profils).</p>' : ''}`;
     lockEl.classList.add('on');
@@ -499,7 +500,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const needsWelcome = () => !profilesOn() && !db.noProfiles;
   const welcomeScreen = () => {
     me = null;
-    lockEl.innerHTML = `<h2>Bienvenue</h2><p style="max-width:330px;line-height:1.5">Avant de commencer, créez les <b>deux gérants</b> : ils ont tous les droits. Les personnes ajoutées ensuite seront des <b>vendeurs</b>, et chacun entrera simplement son code PIN.</p><div class="who"><button data-k="w:new">Créer les deux profils gérant<small>Première installation</small></button><button data-k="w:join">Cet appareil rejoint les autres<small>Synchronisation : récupérer les profils existants</small></button></div>`;
+    lockEl.innerHTML = `<img src="logo.svg" alt="" style="width:110px;height:110px;margin-bottom:6px"><h2>Bienvenue</h2><p style="max-width:330px;line-height:1.5">Avant de commencer, créez les <b>deux gérants</b> : ils ont tous les droits. Les personnes ajoutées ensuite seront des <b>vendeurs</b>, et chacun entrera simplement son code PIN.</p><div class="who"><button data-k="w:new">Créer les deux profils gérant<small>Première installation</small></button><button data-k="w:join">Cet appareil rejoint les autres<small>Synchronisation : récupérer les profils existants</small></button></div>`;
     lockEl.classList.add('on'); draw();
   };
   const isMgr = () => !profilesOn() || !!(me && me.role === 'gerant');
