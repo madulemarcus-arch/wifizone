@@ -65,6 +65,23 @@ Réglages → **Synchronisation entre téléphones** → Configurer (ou le bouto
 
 L'application garde une copie pour fonctionner hors connexion : une nouvelle version est téléchargée en arrière-plan, puis une bannière **« Nouvelle version disponible — Actualiser »** apparaît. Si une nouveauté n'apparaît pas : **Réglages → Application → 🔄 Mettre à jour l'application**. Le bouton efface la copie en mémoire (service worker et caches `wifizone-*`) et recharge la dernière version ; **les données ne sont pas touchées**. Le numéro de version (`VERSION` dans `index.html`) doit rester identique à `CACHE` dans `sw.js` et être augmenté à chaque publication.
 
+## Profils : gérant et vendeur
+
+Réglages → **Profils** → **Activer les profils** : crée d'abord le **gérant** (nom + code PIN à 4 chiffres, saisi deux fois). Le gérant ajoute ensuite les autres personnes (**+ Ajouter un profil** : nom, rôle, code PIN) et peut les modifier (changer le nom, le rôle, le code) ou les supprimer ; le dernier gérant ne peut pas être supprimé ni rétrogradé. **Désactiver** les profils redonne tous les droits à tout le monde.
+
+À l'ouverture (et après verrouillage, bouton 🔒 de l'en-tête), l'application demande **« Qui êtes-vous ? »** puis le code PIN du profil choisi ; 5 erreurs bloquent 30 secondes. Les profils (avec les codes sous forme d'empreintes) se **synchronisent** : un appareil qui reçoit des profils se verrouille aussitôt sur l'écran de choix. Le code PIN d'appareil des Réglages est remplacé par les profils tant qu'ils sont actifs.
+
+| | Gérant | Vendeur |
+|---|---|---|
+| Vendre un ticket, voir le code | oui | oui |
+| Ses propres ventes du jour | oui | oui (seulement les siennes) |
+| Stock de tickets | oui | consultation |
+| Générer / supprimer / marquer importé un lot | oui | non |
+| Annuler une vente, dépenses, prix, réglages | oui | non |
+| Accueil complet (bénéfice), Clôture, Rapport, Toutes les ventes | oui | non |
+
+Chaque vente enregistre le **nom du vendeur** : il apparaît dans les listes, la recherche, le CSV et la **clôture du jour (« Par vendeur »)**. Limite à connaître : les droits sont appliqués par l'application (ils empêchent les fausses manipulations), pas contre quelqu'un qui connaîtrait la phrase secrète de synchronisation. Code gérant oublié : « Code oublié ? » efface les données de l'appareil, qui se resynchronisent ensuite (ou se restaurent depuis une sauvegarde) ; pour un vendeur, le gérant change le code.
+
 ## Code PIN
 
 Réglages → Sécurité → **Créer un code PIN** (4 chiffres, saisi deux fois). L'application demande le code à l'ouverture et se reverrouille quand on la quitte (dès la sortie, après 2 min ou 10 min, au choix) ; bouton **🔒 Verrouiller** pour le faire à la main. Après 5 erreurs, attente de 30 secondes. Le code est stocké sous forme d'empreinte (SHA-256 avec sel), jamais en clair, et **n'est pas inclus dans les sauvegardes** : restaurer une sauvegarde garde le code de l'appareil. Changer ou supprimer le code demande le code actuel. **Code oublié** : seule issue, effacer les données de l'application sur l'appareil puis restaurer la dernière sauvegarde. Le code protège l'accès à l'écran, pas le contenu du stockage du navigateur.
