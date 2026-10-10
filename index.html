@@ -154,6 +154,39 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 .fo button,.card[data-a],.chip,nav button,.qty button,.btn{transition:transform .12s,box-shadow .15s,background .15s}
 .chip:active,.card[data-a]:active,.qty button:active,nav button:active{transform:scale(.95)}
 @media (prefers-reduced-motion:reduce){.sold-ok{animation:none;opacity:0}.chip:active,.card[data-a]:active,.qty button:active,nav button:active{transform:none}}
+
+/* ---------- Design v2 (étape 3) : ordinateur ---------- */
+kbd{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:3px 6px;border-radius:6px;background:var(--bg2);border:1px solid var(--line);border-bottom-width:2px;color:inherit}
+.keys>div{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--line)}.keys>div span{margin-left:auto}
+.nav-keys,.nav-brand{display:none}
+@media (min-width:1024px){
+  body{padding-left:236px;padding-bottom:28px}
+  header{padding-left:28px;padding-right:28px;border-radius:0 0 22px 22px}
+  header small{margin-left:48px}
+  nav{left:0;right:auto;top:0;bottom:0;width:236px;max-width:none;margin:0;border-radius:0;border:0;border-right:1px solid var(--line);flex-direction:column;justify-content:flex-start;gap:3px;padding:18px 12px;background:var(--card);backdrop-filter:none;box-shadow:none}
+  .nav-brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;letter-spacing:-.02em;padding:0 8px 14px}
+  .nav-brand i{width:36px;height:36px;background:url(logo.svg) center/contain no-repeat;flex:none}
+  nav button{flex:none;display:flex;align-items:center;gap:12px;width:100%;text-align:left;font-size:15px;font-weight:600;padding:10px 12px;border-radius:12px}
+  nav button b{font-size:19px;width:26px;text-align:center;margin:0;transform:none!important}
+  nav button:hover{background:var(--bg2)}
+  nav button.on{background:color-mix(in srgb,var(--acc) 14%,transparent);box-shadow:inset 3px 0 0 var(--acc)}
+  nav button[data-v=tix]{background:var(--g);color:#fff}
+  nav button[data-v=tix] b{background:none;border:0;box-shadow:none;margin:0;padding:0;font-size:19px;line-height:1}
+  nav button[data-v=tix].on{box-shadow:0 6px 16px rgba(31,111,235,.4)}
+  .nav-keys{display:flex;margin-top:auto;font-size:13px!important;font-weight:500!important;color:var(--mut)}
+  .nav-keys kbd{margin-left:auto}
+  main{max-width:1120px;padding:22px 28px 12px}
+  main[data-v=sell],main[data-v=exp],main[data-v=day],main[data-v=tix],main[data-v=set]{max-width:760px}
+  #toast{bottom:28px}
+}
+@media (min-width:1280px){
+  main[data-v=home]{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;align-items:start}
+  main[data-v=home]>*{grid-column:1/-1}
+  main[data-v=home]>.blk{grid-column:auto}
+  main[data-v=home]>.hero{padding:22px 26px 16px}
+  main[data-v=home] .hero-num{font-size:48px}
+  main[data-v=home]>.grid{grid-template-columns:repeat(2,1fr)}
+}
 </style>
 </head>
 <body>
@@ -168,7 +201,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v23'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v24'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -434,6 +467,8 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     if (!canView(st.tab)) st.tab = 'sell';
     const v = views[st.tab](); $('ttl').textContent = v.title; $('sub').textContent = (v.sub || '') + (me ? ' · 👤 ' + me.name : ''); { const lb = $('lockBtn'); if (lb) lb.style.display = (db.pin || profilesOn()) ? 'grid' : 'none'; } $('view').innerHTML = v.html;
     $('nav').innerHTML = NAV.filter(([k]) => canView(k)).map(([k, i, t]) => `<button class="${(st.tab === 'sales' ? 'rep' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
+    $('nav').insertAdjacentHTML('afterbegin', `<div class="nav-brand"><i></i>${esc(db.name)}</div>`); $('nav').insertAdjacentHTML('beforeend', '<button class="nav-keys" data-a="keys"><b>⌨</b>Raccourcis <kbd>?</kbd></button>');
+    $('view').dataset.v = st.tab; if (st.tab === 'home') { const m = $('view'); [...m.querySelectorAll(':scope > h2')].forEach(h => { const n = h.nextElementSibling; if (!n) return; const w = document.createElement('section'); w.className = 'blk'; h.before(w); w.append(h, n); }); }
     if ($('sq')) $('sq').oninput = () => { st.sq = $('sq').value; const l = salesFiltered(); $('slist').innerHTML = saleRows(l); $('stot').textContent = salesTot(l); };
     if ($('cdate')) $('cdate').onchange = () => { const d = $('cdate').value; if (d && d <= today()) { st.cd = d; draw(); } };
   };
@@ -587,7 +622,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   // Sign-in is by PIN only: the code itself selects the profile (so every PIN is unique). Profiles + PIN hashes sync between devices.
   // Roles are enforced in this app (they stop casual misuse, not someone who knows the sync passphrase).
   let me = null;
-  const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix'], SELLER_ACTS = new Set(['tab', 'src', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn']);
+  const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix'], SELLER_ACTS = new Set(['tab', 'src', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn', 'keys']);
   const MAXG = 4, MING = 2; // up to 4 gérants (the first two are created at start-up); a vendeur is added with its own button
   const profilesOn = () => db.users.length > 0;
   const gerants = () => db.users.filter(u => u.role === 'gerant');
@@ -801,6 +836,22 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     reload: () => location.reload(),
     restore: () => $('rfile').click()
   };
+  // ---------- keyboard shortcuts (computers) ----------
+  const KEYS_NAV = { h: ['home', 'Accueil'], v: ['sell', 'Vendre'], t: ['tix', 'Tickets'], d: ['exp', 'Dépenses'], c: ['day', 'Clôture'], r: ['rep', 'Rapport'], s: ['set', 'Réglages'] };
+  A.keys = () => modal('⌨ Raccourcis clavier', `<div class="keys"><h2 style="margin:6px 0">Aller à</h2>${Object.entries(KEYS_NAV).filter(([, [v]]) => canView(v)).map(([k, [, t]]) => `<div><kbd>${k.toUpperCase()}</kbd><span>${t}</span></div>`).join('')}<h2 style="margin:14px 0 6px">Sur l'écran Vendre</h2><div><kbd>+</kbd> <kbd>−</kbd><span>Quantité</span></div><div><kbd>1</kbd>…<kbd>9</kbd><span>Choisir le forfait</span></div><div><kbd>Entrée</kbd><span>Enregistrer la vente</span></div><h2 style="margin:14px 0 6px">Partout</h2><div><kbd>?</kbd><span>Cette aide</span></div><div><kbd>Échap</kbd><span>Fermer la fenêtre</span></div></div>`);
+  document.addEventListener('keydown', e => {
+    const t = e.target; if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+    if (dlg.open || e.ctrlKey || e.metaKey || e.altKey || (lockEl && lockEl.classList.contains('on'))) return;
+    const k = e.key, kl = k.toLowerCase();
+    if (k === '?') { e.preventDefault(); return A.keys(); }
+    if (KEYS_NAV[kl] && canView(KEYS_NAV[kl][0])) { e.preventDefault(); return A.tab(KEYS_NAV[kl][0]); }
+    if (st.tab === 'sell') {
+      if (k === '+' || k === '=') { e.preventDefault(); return A.qty('1'); }
+      if (k === '-') { e.preventDefault(); return A.qty('-1'); }
+      if (/^[1-9]$/.test(k) && db.forfaits[+k - 1]) { e.preventDefault(); return A.fid(db.forfaits[+k - 1].id); }
+      if (k === 'Enter' && st.fid) { e.preventDefault(); return A.sell(); }
+    }
+  });
   document.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b && A[b.dataset.a]) { if (!canAct(b.dataset.a)) return toast('Action réservée au gérant'); A[b.dataset.a](b.dataset.v); } });
   document.addEventListener('change', e => {
     if (e.target.id === 'ifile' && e.target.files[0]) {
