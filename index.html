@@ -142,6 +142,18 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 .ccol.pick i{background:linear-gradient(180deg,#f6c453,#e5a11f)}
 .clabels{display:flex;gap:4px;margin-top:5px}.clabels span{flex:1;text-align:center;font-size:10.5px;color:var(--mut);min-width:0;overflow:hidden}
 @media (prefers-reduced-motion:reduce){.ccol i{transition:none}}
+
+/* ---------- Design v2 (étape 2) : vente, effets ---------- */
+#confetti{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999}
+.sold-ok{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:9998;width:96px;height:96px;border-radius:50%;background:var(--g);color:#fff;display:grid;place-items:center;font-size:52px;box-shadow:0 14px 40px rgba(31,111,235,.5);pointer-events:none;animation:pop .9s cubic-bezier(.2,.9,.3,1.3) both}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}25%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-70%) scale(1)}}
+.today{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border-radius:20px;padding:12px 16px;margin-bottom:14px;box-shadow:0 10px 26px rgba(10,31,68,.25)}
+.today b{font-size:22px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.today small{opacity:.85;display:block;font-size:12.5px}.today span{margin-left:auto;font-size:26px}
+.dot{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:none;margin-right:10px;background:var(--c,var(--acc))}
+.row .mode{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:99px;background:color-mix(in srgb,var(--mut) 14%,transparent);color:var(--mut);margin-right:4px}
+.fo button,.card[data-a],.chip,nav button,.qty button,.btn{transition:transform .12s,box-shadow .15s,background .15s}
+.chip:active,.card[data-a]:active,.qty button:active,nav button:active{transform:scale(.95)}
+@media (prefers-reduced-motion:reduce){.sold-ok{animation:none;opacity:0}.chip:active,.card[data-a]:active,.qty button:active,nav button:active{transform:none}}
 </style>
 </head>
 <body>
@@ -156,7 +168,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v22'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v23'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -165,6 +177,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const fdate = s => s ? s.split('-').reverse().join('/') : '—';
   const nf = (n, d = 0) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: d }).format(n).replace(/[  ]/g, ' ');
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const MODEI = { 'Cash': '💵', 'M-Pesa': '📱', 'Airtel Money': '📱', 'Orange Money': '📱', 'Banque': '🏦' };
   const MODES = ['Cash', 'M-Pesa', 'Airtel Money', 'Orange Money', 'Banque'], CATS = ['Abonnement Starlink', 'Électricité / carburant', 'Salaire', 'Matériel / réparation', 'Papier / impression', 'Autre'];
   const blank = () => ({ v: 1, name: 'WiFi Zone', rate: 2400, lastBackup: '', pin: null, lockMin: 2, forfaits: [
     { id: 'V', nom: 'Visiteur', duree: '6 heures', prix: 500 }, { id: 'J', nom: 'Jour', duree: '24 heures', prix: 1000 },
@@ -306,7 +319,9 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   };
   views.sell = () => {
     const f = db.forfaits.find(x => x.id === st.fid), t = f ? f.prix * st.qty : 0, list = db.sales.filter(s => s.date === today() && (isMgr() || s.by === (me && me.name))).sort((a, b) => b.ts - a.ts);
+    const tT = sum(list, saleCDF), tQ = sum(list, x => x.qty);
     return { title: 'Vendre', sub: fdate(today()), html: `
+      <div class="today"><div><small>${isMgr() ? 'Ventes du jour' : 'Mes ventes du jour'}</small><b>${fmt(tT)}</b></div><span>🎫</span><div style="text-align:right"><small>tickets</small><b>${tQ}</b></div></div>
       <div class="fo">${db.forfaits.map(x => `<button class="${st.fid === x.id ? 'on' : ''}" style="--c:${fcol(x)}" data-a="fid" data-v="${esc(x.id)}">${esc(x.nom)}<small>${esc(x.duree)} · ${fmt(x.prix)}</small></button>`).join('')}</div>
       ${pendBanner()}
       ${chips('src', st.src, [['app', "📱 Ticket de l'application"], ['paper', '🖨️ Ticket papier']])}
@@ -317,7 +332,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
         ${chips('mode', st.mode, MODES.map(m => [m, m]))}
         <div class="mut">Total à encaisser</div><div class="total">${fmt(t)}</div>
         <button class="btn full" data-a="sell" ${f ? '' : 'disabled style="opacity:.5"'}>✔ Enregistrer la vente</button></div>
-      <h2>Ventes d'aujourd'hui (${list.length}) ${isMgr() ? '<a data-a="tab" data-v="sales" style="float:right;text-transform:none;letter-spacing:0;color:var(--acc);cursor:pointer">Toutes les ventes ›</a>' : ''}</h2><div class="card">${list.length ? list.map(s => `<div class="row"><div class="g"><b>${s.qty} × ${esc(fname(s.fid))}</b><small>${s.paper ? '🖨️ papier · ' : ''}${esc(s.mode)}${s.by ? ' · ' + esc(s.by) : ''}${s.ref ? ' · code ' + esc(s.ref) : ''}${s.note ? ' · ' + esc(s.note) : ''}</small></div><b>${fmt(s.amount)}</b>${isMgr() ? `<button class="btn sm sec" data-a="delsale" data-v="${s.id}">✕</button>` : ''}</div>`).join('') : '<div class="empty">Aucune vente pour le moment.</div>'}</div>` };
+      <h2>Ventes d'aujourd'hui (${list.length}) ${isMgr() ? '<a data-a="tab" data-v="sales" style="float:right;text-transform:none;letter-spacing:0;color:var(--acc);cursor:pointer">Toutes les ventes ›</a>' : ''}</h2><div class="card">${list.length ? list.map(s => `<div class="row"><span class="dot" style="--c:${fcol(db.forfaits.find(f => f.id === s.fid) || { id: s.fid })}">${esc((db.forfaits.find(f => f.id === s.fid) || { letter: '?' }).letter)}</span><div class="g"><b>${s.qty} × ${esc(fname(s.fid))}</b><small>${s.paper ? '🖨️ papier · ' : ''}<span class="mode">${MODEI[s.mode] || '💳'} ${esc(s.mode)}</span>${s.by ? ' · ' + esc(s.by) : ''}${s.ref ? ' · code ' + esc(s.ref) : ''}${s.note ? ' · ' + esc(s.note) : ''}</small></div><b>${fmt(s.amount)}</b>${isMgr() ? `<button class="btn sm sec" data-a="delsale" data-v="${s.id}">✕</button>` : ''}</div>`).join('') : '<div class="empty">Aucune vente pour le moment.</div>'}</div>` };
   };
   views.exp = () => {
     const r = range(st.per), E = db.expenses.filter(e => inR(e.date, r)).sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts);
@@ -667,6 +682,23 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   };
 
   // ---------- actions ----------
+  // ---------- small delights: haptic tick, confetti, "sold" check ----------
+  const reduce = () => matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const tick = () => { try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} };
+  const confetti = () => {
+    try { if (navigator.vibrate) navigator.vibrate([30, 40, 30]); } catch (e) {}
+    if (reduce() || $('confetti')) return;
+    const cv = document.createElement('canvas'); cv.id = 'confetti'; cv.setAttribute('aria-hidden', 'true');
+    const dpr = Math.min(2, window.devicePixelRatio || 1), W = innerWidth, H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; document.body.appendChild(cv);
+    const g = cv.getContext('2d'); g.scale(dpr, dpr); const COL = ['#1f6feb', '#f6c453', '#2e8b3a', '#d9600b', '#7b2cbf', '#ffffff'];
+    const ps = Array.from({ length: 110 }, () => ({ x: W / 2 + (Math.random() - .5) * W * .5, y: -10 - Math.random() * 60, vx: (Math.random() - .5) * 9, vy: 2 + Math.random() * 5, s: 5 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: COL[Math.floor(Math.random() * COL.length)] })), t0 = performance.now();
+    const step = now => { const k = (now - t0) / 1700; g.clearRect(0, 0, W, H); ps.forEach(q => { q.x += q.vx; q.y += q.vy; q.vy += .12; q.vx *= .99; q.r += q.vr; g.save(); g.globalAlpha = Math.max(0, 1 - Math.max(0, k - .6) / .4); g.translate(q.x, q.y); g.rotate(q.r); g.fillStyle = q.c; g.fillRect(-q.s / 2, -q.s / 4, q.s, q.s / 2); g.restore(); }); if (k < 1) requestAnimationFrame(step); else cv.remove(); };
+    requestAnimationFrame(step);
+  };
+  const soldCheck = () => { tick(); if (reduce()) return; const el = document.createElement('div'); el.className = 'sold-ok'; el.setAttribute('aria-hidden', 'true'); el.textContent = '✓'; document.body.appendChild(el); setTimeout(() => el.remove(), 1000); };
+  // a new best day (sales total above every earlier day) gets confetti, once per day
+  const recordCheck = () => { try { const t = today(), by = {}; db.sales.forEach(x => by[x.date] = (by[x.date] || 0) + x.amount); const best = Math.max(0, ...Object.entries(by).filter(([d]) => d !== t).map(([, v]) => v)); const k = 'wifizone-record-' + t; if (best > 0 && (by[t] || 0) > best && !localStorage.getItem(k)) { localStorage.setItem(k, '1'); setTimeout(() => { confetti(); toast('🏆 Record : meilleure journée de tous les temps !'); }, 450); } } catch (e) {} };
+  document.addEventListener('click', e => { if (e.target.closest('nav button, .fo button, .qty button, .chips .chip')) tick(); }, true);
   const share = t => window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank', 'noopener');
   const copy = t => { const ok = () => toast('Copié'); try { navigator.clipboard.writeText(t).then(ok, () => prompt('Copiez :', t)); } catch (e) { prompt('Copiez :', t); } };
   const download = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
@@ -689,12 +721,12 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
         else if (hasPaper(f.id)) { take = avail.slice(0, st.qty); if (take.length < st.qty && !confirm(`Il ne reste que ${take.length} ticket(s) papier ${f.nom} en stock pour ${st.qty} demandé(s). Vendre quand même ?`)) return; }
         const id = uid(); db.sales.push({ id, ts: Date.now(), date: today(), fid: f.id, qty: st.qty, amount: f.prix * st.qty, mode: st.mode, ref: code, codes: code ? [code] : [], anonCodes: code ? [] : take.map(t => t.code), paper: true, note: '', by: me ? me.name : '' });
         take.forEach(t => { t.status = 'sold'; t.saleId = id; t.soldAt = Date.now(); });
-        save(); toast(`Vente papier enregistrée : ${fmt(f.prix * st.qty)}`); st.qty = 1; return draw(); }
+        save(); toast(`Vente papier enregistrée : ${fmt(f.prix * st.qty)}`); st.qty = 1; draw(); soldCheck(); recordCheck(); return; }
       const avail = stockOf(f.id).sort(() => Math.random() - .5), take = avail.slice(0, st.qty); // random pick: two phones selling offline rarely take the same code
       if (hasLots(f.id) && take.length < st.qty && !confirm(`Il ne reste que ${take.length} ticket(s) ${f.nom} en stock pour ${st.qty} demandé(s). Vendre quand même, sans code pour les autres ?`)) return;
       const id = uid(); db.sales.push({ id, ts: Date.now(), date: today(), fid: f.id, qty: st.qty, amount: f.prix * st.qty, mode: st.mode, ref: take.map(t => t.code).join(' '), codes: take.map(t => t.code), note: '', by: me ? me.name : '' });
       take.forEach(t => { t.status = 'sold'; t.saleId = id; t.soldAt = Date.now(); });
-      save(); toast(`Vente enregistrée : ${fmt(f.prix * st.qty)}`); st.qty = 1; draw(); if (take.length) showCodes(f, take.map(t => t.code)); },
+      save(); toast(`Vente enregistrée : ${fmt(f.prix * st.qty)}`); st.qty = 1; draw(); soldCheck(); recordCheck(); if (take.length) showCodes(f, take.map(t => t.code)); },
     delsale: v => { const s = db.sales.find(x => x.id === v); if (s && confirm(`Supprimer cette vente de ${fmt(s.amount)} ?${(s.codes || []).length ? ' Les codes ' + s.codes.join(', ') + ' retournent en stock.' : ''}`)) { (s.codes || []).concat(s.anonCodes || []).forEach(c => { const t = db.tickets.find(x => x.code === c); if (t) { t.status = 'stock'; delete t.saleId; delete t.soldAt; } }); db.sales = db.sales.filter(x => x !== s); save(); draw(); } },
     newexp: () => modal('Nouvelle dépense', `<label>Libellé</label><input id="e_label" placeholder="Ex. Recharge Starlink"><label>Catégorie</label><select id="e_cat">${CATS.map(c => `<option>${esc(c)}</option>`).join('')}</select>
       <div style="display:flex;gap:8px"><div style="flex:2"><label>Montant</label><input id="e_amt" type="number" inputmode="decimal" min="0"></div><div style="flex:1"><label>Devise</label><select id="e_cur"><option>CDF</option><option>USD</option></select></div></div>

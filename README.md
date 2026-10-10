@@ -119,3 +119,11 @@ Section `views.*` (écrans), `A` (actions), `db` (données), `modal`. Commentair
 - **Accueil gérant** : grande carte « Ventes » avec salutation selon l'heure, comparaison avec la période précédente (hier, 7 jours précédents, mois dernier), courbe des ventes, sélecteur de période, chiffre qui monte jusqu'à sa valeur (sauf si l'appareil demande moins d'animations).
 - **Graphiques** (sans bibliothèque) : répartition des ventes par forfait (anneau) et ventes par jour (barres) ; un toucher affiche la valeur exacte.
 - Les profils vendeurs gardent l'accueil simplifié.
+
+## Design (étape 2) : la vente et les petits effets
+
+- **Vendre** : bandeau « Ventes du jour » (montant et tickets), ventes du jour avec pastille de la lettre du forfait (couleur du forfait) et mode de paiement avec icône (💵 Cash, 📱 mobile money, 🏦 Banque).
+- **Vente enregistrée** : une coche ✓ animée et une vibration légère. Quand la journée dépasse **toutes les journées précédentes**, confettis 🎉 et message « Record » (une seule fois par jour).
+- **Vibration légère** sur la barre du bas, le choix du forfait, la quantité et les filtres, si le téléphone le permet.
+- **Effet au toucher** sur les puces, les cartes cliquables, la quantité et la barre du bas.
+- Confettis, coche et effets sont désactivés quand l'appareil demande de réduire les animations.
