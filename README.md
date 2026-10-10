@@ -112,3 +112,10 @@ Réglages → Sécurité → **Créer un code PIN** (4 chiffres, saisi deux fois
 ## Code
 Palette identique aux outils WiFi (`caisse-locale`) : marine #0a1f44, bleu #1b5fc1, forfaits vert / bleu / orange / violet.
 Section `views.*` (écrans), `A` (actions), `db` (données), `modal`. Commentaires en anglais, textes en français. Incrémenter `CACHE` dans `sw.js` à chaque modification de l'application.
+
+## Design (étape 1) : accueil et graphiques
+
+- **Police Inter** embarquée (`fonts/inter-latin.woff2`, licence dans `fonts/`), chiffres alignés.
+- **Accueil gérant** : grande carte « Ventes » avec salutation selon l'heure, comparaison avec la période précédente (hier, 7 jours précédents, mois dernier), courbe des ventes, sélecteur de période, chiffre qui monte jusqu'à sa valeur (sauf si l'appareil demande moins d'animations).
+- **Graphiques** (sans bibliothèque) : répartition des ventes par forfait (anneau) et ventes par jour (barres) ; un toucher affiche la valeur exacte.
+- Les profils vendeurs gardent l'accueil simplifié.
