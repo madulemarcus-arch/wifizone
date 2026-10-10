@@ -133,3 +133,10 @@ Section `views.*` (écrans), `A` (actions), `db` (données), `modal`. Commentair
 - **Menu à gauche** (écrans de 1024 px et plus) à la place de la barre du bas, avec le logo, l'onglet actif en couleur et Tickets mis en avant. Sur téléphone, rien ne change.
 - **Accueil sur deux colonnes** (à partir de 1280 px) : la carte des ventes en grand, puis répartition par forfait / ventes par jour, et par forfait / par mode de paiement côte à côte.
 - **Raccourcis clavier** (ignorés pendant la saisie, avec une fenêtre ouverte ou sur l'écran verrouillé, et limités aux droits du profil) : `H` accueil, `V` vendre, `T` tickets, `D` dépenses, `C` clôture, `R` rapport, `S` réglages ; sur Vendre : `1`…`9` forfait, `+` / `−` quantité, `Entrée` enregistrer la vente ; `?` aide (aussi dans le menu de gauche).
+
+## Design (étape 4) : Rapport, Clôture, Réglages
+
+- **Rapport du mois** : grande carte avec les ventes du mois, la comparaison au mois précédent, les dépenses et le bénéfice net (≈ en dollars), boutons ‹ Précédent / Suivant › dans la carte ; puis anneau de répartition par forfait et barres des ventes jour par jour (un toucher donne la valeur). Les listes détaillées, WhatsApp, CSV et l'impression restent en dessous.
+- **Clôture du jour** : carte avec la date, l'état (« Pas encore clôturée », « ✓ Clôturée » ou « ⚠ Écart … »), les ventes, les dépenses, le bénéfice et le cash attendu. Une clôture **sans aucun écart** déclenche des confettis 🎉.
+- **Réglages** : en-tête avec le logo, le nom, la version, le profil connecté et trois pastilles d'état : PIN, sauvegarde (récente en vert, ancienne ou absente en jaune), synchronisation. Un toucher sur « Sans PIN » ou sur la sauvegarde lance l'action directement (selon les droits du profil).
+- À l'impression, les cartes s'impriment en noir sur blanc.

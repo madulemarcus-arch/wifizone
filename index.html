@@ -187,6 +187,22 @@ kbd{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:3px 6px;
   main[data-v=home] .hero-num{font-size:48px}
   main[data-v=home]>.grid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ---------- Design v2 (étape 4) : rapport, clôture, réglages ---------- */
+.hero .chip[disabled]{opacity:.4;cursor:default}
+.hero-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.hero-pill{display:inline-block;font-size:12.5px;font-weight:700;padding:4px 11px;border-radius:99px;background:rgba(255,255,255,.18);white-space:nowrap}
+.hero-pill.ok{background:rgba(62,207,142,.3)}.hero-pill.warn{background:rgba(246,196,83,.32)}
+.hstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:12px 0 2px}
+.hstats>div{background:rgba(255,255,255,.12);border-radius:14px;padding:9px 12px}
+.hstats small{color:rgba(255,255,255,.82)!important;display:block}.hstats b{display:block;font-size:18px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.hstats small{opacity:.82;font-size:12px}
+.hstats .bad b{color:#ffb4a8}.hstats .ok b{color:#9ff0c6}
+.sbadges{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.sbadge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px 6px 8px;border-radius:99px;background:rgba(255,255,255,.14);color:#fff;border:0;font:600 12.5px inherit;cursor:default}
+button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.2);font-size:12px}
+.sbadge.ok{background:rgba(62,207,142,.28)}.sbadge.warn{background:rgba(246,196,83,.32)}
+.shead{display:flex;align-items:center;gap:14px}.shead img{width:54px;height:54px;background:#fff;border-radius:14px;padding:5px;flex:none}.shead h2{display:block;margin:0;font-size:20px;font-weight:800;text-transform:none;letter-spacing:-.01em;color:#fff}.shead small{display:block}
+@media print{.hero{background:#fff!important;color:#000!important;box-shadow:none!important;border:1px solid #999}.hero *{color:#000!important}.hero .chips,.hero .chip,.hstats>div{background:none!important}}
 </style>
 </head>
 <body>
@@ -201,7 +217,7 @@ kbd{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:3px 6px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v24'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v25'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -392,8 +408,9 @@ kbd{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:3px 6px;
     const x = dayData(st.cd), cl = x.cl;
     return { title: 'Clôture du jour', sub: fdate(st.cd), html: `
       <div class="bar noprint" style="margin:0 0 10px"><button class="btn sec sm" data-a="dnav" data-v="-1">‹ Veille</button><input type="date" id="cdate" value="${st.cd}" max="${today()}" style="flex:2;margin:0"><button class="btn sec sm" data-a="dnav" data-v="1" ${st.cd >= today() ? 'disabled' : ''}>Lendemain ›</button></div>
-      <div class="grid"><div class="stat"><small>Ventes</small><b class="ok">${fmt(x.inc)}</b><small>${x.tickets} ticket(s)</small></div><div class="stat"><small>Dépenses</small><b class="bad">${fmt(x.out)}</b></div></div>
-      <div class="card"><small class="mut">Bénéfice du jour</small><div class="total ${x.inc - x.out >= 0 ? 'ok' : 'bad'}">${fmt(x.inc - x.out)}</div></div>
+      <section class="hero"><div class="hero-row"><div><small>🌙 Clôture du jour</small><div class="hero-greet" style="margin:1px 0 4px">${fdate(st.cd)}</div></div><span class="hero-pill ${cl ? (cl.diff ? 'warn' : 'ok') : ''}">${cl ? (cl.diff ? '⚠ Écart ' + fmt(cl.diff) : '✓ Clôturée') : 'Pas encore clôturée'}</span></div>
+        <div class="hero-num" data-count="${x.inc}">${fmt(x.inc)}</div><small>${x.tickets} ticket(s) vendu(s)</small>
+        <div class="hstats"><div class="bad"><b>${fmt(x.out)}</b><small>dépenses</small></div><div class="${x.inc - x.out >= 0 ? 'ok' : 'bad'}"><b>${fmt(x.inc - x.out)}</b><small>bénéfice du jour</small></div><div><b>${fmt(x.cash.CDF)}</b><small>cash attendu</small></div></div></section>
       ${(() => { const by = {}; x.S.forEach(v => { const k = v.by || '—'; const o = by[k] = by[k] || { q: 0, a: 0 }; o.q += v.qty; o.a += v.amount; }); const ks = Object.keys(by); return ks.length && ks.some(k => k !== '—') ? `<h2>Par profil</h2><div class="card">${ks.map(k => `<div class="row"><div class="g"><b>${k === '—' ? 'Sans profil' : esc(k)}</b><small>${by[k].q} ticket(s)</small></div><b>${fmt(by[k].a)}</b></div>`).join('')}</div>` : ''; })()}
       <h2>💵 Caisse (cash)</h2><div class="card"><div class="row"><div class="g">Cash attendu</div><b>${fmt(x.cash.CDF)}${Math.abs(x.cash.USD) > .004 ? ' + ' + fmt(x.cash.USD, 'USD') : ''}</b></div>
         <label>Cash compté (FC)</label><input id="ccount" type="number" inputmode="numeric" min="0" value="${cl ? cl.counted : ''}" placeholder="${nf(x.cash.CDF)}">
@@ -429,18 +446,26 @@ kbd{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:3px 6px;
     <div class="card" id="slist">${saleRows(l)}</div>
     <div class="bar noprint"><button class="btn sec" data-a="salescsv">⬇ CSV (avec codes)</button><button class="btn sec" data-a="print">🖨️ Imprimer</button></div>` }; };
   views.rep = () => {
-    const x = monthData(st.rm), days = Object.entries(x.byD).sort((a, b) => b[0].localeCompare(a[0]));
+    const x = monthData(st.rm), days = Object.entries(x.byD).sort((a, b) => b[0].localeCompare(a[0])), pm = iso(new Date(+st.rm.slice(0, 4), +st.rm.slice(5, 7) - 2, 1)).slice(0, 7), pInc = monthData(pm).inc, pd = pInc > 0 ? (x.inc - pInc) / pInc * 100 : null;
     return { title: 'Rapport du mois', sub: monthName(st.rm), html: `
-      <div class="bar noprint" style="margin:0 0 10px"><button class="btn sec sm" data-a="mnav" data-v="-1">‹ Précédent</button><button class="btn sec sm" data-a="mnav" data-v="1" ${st.rm >= today().slice(0, 7) ? 'disabled' : ''}>Suivant ›</button></div>
-      <div class="grid"><div class="stat"><small>Ventes</small><b class="ok">${fmt(x.inc)}</b><small>${x.tickets} ticket(s)</small></div><div class="stat"><small>Dépenses</small><b class="bad">${fmt(x.out)}</b></div></div>
-      <div class="card"><small class="mut">Bénéfice net</small><div class="total ${x.inc - x.out >= 0 ? 'ok' : 'bad'}">${fmt(x.inc - x.out)}</div><div class="mut">≈ ${fmt(usdOf(x.inc - x.out), 'USD')}</div></div>
+      <section class="hero"><div class="hero-row"><div><small>📊 Ventes du mois</small><div class="hero-greet" style="margin:1px 0 4px;text-transform:capitalize">${esc(monthName(st.rm))}</div></div>${pd === null ? '' : `<span class="delta ${pd >= 0 ? 'up' : 'down'}">${pd >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(pd))} % vs mois précédent</span>`}</div>
+        <div class="hero-num" data-count="${x.inc}">${fmt(x.inc)}</div><small>${x.tickets} ticket(s)</small>
+        <div class="hstats"><div class="bad"><b>${fmt(x.out)}</b><small>dépenses</small></div><div class="${x.inc - x.out >= 0 ? 'ok' : 'bad'}"><b>${fmt(x.inc - x.out)}</b><small>bénéfice net · ≈ ${fmt(usdOf(x.inc - x.out), 'USD')}</small></div></div>
+        <div class="chips noprint"><button class="chip" data-a="mnav" data-v="-1">‹ Précédent</button><button class="chip" data-a="mnav" data-v="1" ${st.rm >= today().slice(0, 7) ? 'disabled' : ''}>Suivant ›</button></div></section>
+      ${Object.keys(x.byF).length ? '<h2>Répartition des ventes</h2>' + donut(Object.entries(x.byF).map(([id, o]) => ({ l: fname(id), v: o.a, c: fcol(db.forfaits.find(f => f.id === id) || { id }) })), 'Ventes') : ''}
+      ${days.length > 1 ? '<h2>Ventes par jour</h2>' + barsChart(days.slice().reverse().map(([d, o]) => ({ l: d.slice(8), t: fdate(d), v: o.i })), monthName(st.rm)) : ''}
       <h2>Par forfait</h2><div class="card">${Object.keys(x.byF).length ? Object.entries(x.byF).map(([id, o]) => `<div class="row"><div class="g"><b>${esc(fname(id))}</b><small>${o.q} ticket(s)</small></div><b>${fmt(o.a)}</b></div>`).join('') : '<div class="empty">—</div>'}</div>
       <h2>Dépenses par catégorie</h2><div class="card">${Object.keys(x.byC).length ? Object.entries(x.byC).sort((a, b) => b[1] - a[1]).map(([c, a]) => `<div class="row"><div class="g">${esc(c)}</div><b class="bad">${fmt(a)}</b></div>`).join('') : '<div class="empty">—</div>'}</div>
       <h2>Jour par jour</h2><div class="card">${days.length ? days.map(([d, o]) => `<div class="row"><div class="g"><b>${fdate(d)}</b><small>Ventes ${fmt(o.i)} · Dépenses ${fmt(o.o)}</small></div><b class="${o.i - o.o >= 0 ? 'ok' : 'bad'}">${fmt(o.i - o.o)}</b></div>`).join('') : '<div class="empty">—</div>'}</div>
       <button class="btn sec full noprint" data-a="tab" data-v="sales" style="margin:0 0 12px">📋 Toutes les ventes (avec heure et code)</button>
       <div class="bar noprint"><button class="btn" data-a="mwa">💬 WhatsApp</button><button class="btn sec" data-a="csv">⬇ CSV</button><button class="btn sec" data-a="print">🖨️ Imprimer</button></div>` };
   };
+  const setHero = () => { const lb = db.lastBackup ? Math.floor((Date.now() - db.lastBackup) / 864e5) : null, sy = SY && SY.status !== 'off', can = a => canAct(a);
+    const b = (cls, ico, txt, act) => `<${act && can(act) ? `button data-a="${act}"` : 'span'} class="sbadge ${cls}"><i>${ico}</i>${txt}</${act && can(act) ? 'button' : 'span'}>`;
+    return `<section class="hero"><div class="shead"><img src="logo.svg" alt=""><div><h2>${esc(db.name)}</h2><small>${me ? esc(me.name) + ' · ' + esc(ROLES[me.role] || '') + ' · ' : ''}version ${VERSION}</small></div></div>
+      <div class="sbadges">${b(db.pin ? 'ok' : 'warn', '🔐', db.pin ? 'Protégé par PIN' : 'Sans PIN', db.pin ? '' : 'setpin')}${b(lb !== null && lb <= 3 ? 'ok' : 'warn', '💾', lb === null ? 'Aucune sauvegarde' : lb === 0 ? 'Sauvegardé aujourd\'hui' : `Sauvegarde il y a ${lb} j`, 'backup')}${b(sy ? 'ok' : '', '🔄', sy ? 'Synchronisé' : 'Hors synchronisation')}</div></section>`; };
   views.set = () => ({ title: 'Réglages', sub: db.name, html: `
+    ${setHero()}
     <div class="card"><label>Nom de l'activité</label><input id="s_name" value="${esc(db.name)}">
       <label>Taux du jour (1 $ = … FC)</label><input id="s_rate" type="number" inputmode="numeric" min="1" value="${db.rate}">
       <label>Nom du serveur hotspot (routeur)</label><input id="s_server" value="${esc(db.server)}" autocapitalize="none">
@@ -772,7 +797,7 @@ kbd{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:3px 6px;
     delexp: v => { const e = db.expenses.find(x => x.id === v); if (e && confirm(`Supprimer cette dépense de ${fmt(e.amount, e.cur)} ?`)) { db.expenses = db.expenses.filter(x => x !== e); save(); draw(); } },
     dnav: v => { const n = addDays(st.cd, +v); if (n <= today()) { st.cd = n; draw(); } },
     close: () => { const raw = $('ccount').value; if (raw === '') return toast('Saisissez le cash compté'); const x = dayData(st.cd), counted = +raw, diff = Math.round(counted - x.cash.CDF);
-      db.closings = db.closings.filter(c => c.date !== st.cd); db.closings.push({ date: st.cd, ts: Date.now(), expected: x.cash.CDF, counted, diff, note: $('cnote').value.trim() }); save(); draw(); toast('Journée clôturée'); },
+      db.closings = db.closings.filter(c => c.date !== st.cd); db.closings.push({ date: st.cd, ts: Date.now(), expected: x.cash.CDF, counted, diff, note: $('cnote').value.trim() }); save(); draw(); toast('Journée clôturée'); if (diff === 0 && x.inc > 0) { toast('🎉 Caisse juste : aucun écart !'); confetti(); } },
     reopen: () => { if (confirm('Rouvrir cette journée ?')) { db.closings = db.closings.filter(c => c.date !== st.cd); save(); draw(); } },
     dwa: () => share(dayText(dayData(st.cd))), dcopy: () => copy(dayText(dayData(st.cd))), print: () => window.print(),
     mnav: v => { const d = new Date(st.rm + '-15T12:00:00'); d.setMonth(d.getMonth() + +v); const n = iso(d).slice(0, 7); if (n <= today().slice(0, 7)) { st.rm = n; draw(); } },
