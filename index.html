@@ -114,6 +114,34 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 @media print{header,nav,.noprint{display:none!important}body{padding:0;background:#fff}}
 @media print{body.imprime>*:not(#planche){display:none!important}body.imprime{background:#fff;color:#000;padding:0}body.imprime #planche{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
 .tk{border:1px dashed #666;padding:10px 6px;text-align:center;font:11px/1.35 Arial,sans-serif;color:#000;page-break-inside:avoid}.tk b{display:block;font:700 20px/1.4 'Courier New',monospace;letter-spacing:2px;margin:4px 0}.tk small{display:block;color:#333}}
+
+/* ---------- Design v2 (étape 1) : police, accueil, graphiques ---------- */
+@font-face{font-family:Inter;font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/inter-latin.woff2) format("woff2")}
+.hero~.grid .stat:first-child,.hero~.grid .stat:nth-child(2){background:var(--card)}
+.num,.stat b,.total,.hero-num,.row b{font-variant-numeric:tabular-nums}
+.hero{position:relative;overflow:hidden;color:#fff;border-radius:24px;padding:18px 18px 14px;margin-bottom:14px;background:radial-gradient(220px 140px at 100% 0%,rgba(246,196,83,.36),transparent 70%),radial-gradient(240px 160px at 0% 110%,rgba(79,140,255,.4),transparent 70%),linear-gradient(135deg,var(--navy),var(--navy2));box-shadow:0 14px 34px rgba(10,31,68,.28)}
+.hero small{opacity:.85;font-size:13px;font-weight:500}
+.hero-greet{font-weight:800;font-size:17px;letter-spacing:-.01em;margin:1px 0 12px}
+.hero-num{font-size:40px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin:4px 0}
+.delta{display:inline-block;font-size:13px;font-weight:700;padding:3px 10px;border-radius:99px;background:rgba(255,255,255,.16)}
+.delta.up{background:rgba(62,207,142,.28)}.delta.down{background:rgba(255,107,107,.3)}
+.spark{display:block;width:100%;height:48px;margin:10px 0 2px}
+.hero .chips{background:transparent;border:0;box-shadow:none;padding:0;margin:10px 0 0;width:auto}
+.hero .chip{background:rgba(255,255,255,.16);color:#fff;padding:6px 13px;font-size:13px}
+.hero .chip.on{background:#fff;color:#0a1f44;box-shadow:none}
+.cwrap{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px;box-shadow:var(--sh)}
+.cread{min-height:20px;font-size:13px;font-weight:600;color:var(--mut);margin-bottom:6px}.cread.on{color:var(--txt)}
+.dwrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.dwrap svg{width:132px;height:132px;flex:none}
+.dwrap svg .seg{cursor:pointer;transition:opacity .15s}.dwrap svg .seg.dim{opacity:.35}
+.dleg{flex:1;min-width:150px;display:grid;gap:8px}
+.dl{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}.dl i{width:11px;height:11px;border-radius:4px;flex:none}.dl b{margin-left:auto}
+.ccols{display:flex;align-items:flex-end;gap:4px;height:130px;border-bottom:1px solid var(--line)}
+.ccol{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;cursor:pointer;min-width:0}
+.ccol i{display:block;width:100%;max-width:26px;border-radius:6px 6px 0 0;background:linear-gradient(180deg,var(--acc2),var(--acc));min-height:2px;transition:height .5s cubic-bezier(.2,.8,.2,1)}
+.ccol.pick i{background:linear-gradient(180deg,#f6c453,#e5a11f)}
+.clabels{display:flex;gap:4px;margin-top:5px}.clabels span{flex:1;text-align:center;font-size:10.5px;color:var(--mut);min-width:0;overflow:hidden}
+@media (prefers-reduced-motion:reduce){.ccol i{transition:none}}
 </style>
 </head>
 <body>
@@ -128,7 +156,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v21'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v22'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -179,6 +207,20 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
   const chips = (act, cur, items) => `<div class="chips">${items.map(([k, t]) => `<button class="chip ${cur === k ? 'on' : ''}" data-a="${act}" data-v="${esc(k)}">${esc(t)}</button>`).join('')}</div>`;
 
   // ---------- views ----------
+  // ---------- small charts (no library) ----------
+  const chartPick = e => { const el = e.target.closest('[data-ct]'); if (!el) return; const w = el.closest('.cwrap'), r = w && w.querySelector('.cread'); if (!r) return; r.textContent = el.getAttribute('data-ct'); r.classList.add('on'); w.querySelectorAll('.pick').forEach(x => x.classList.remove('pick')); el.classList.add('pick'); };
+  document.addEventListener('click', chartPick);
+  const donut = (items, centre) => { const list = items.filter(x => x.v > 0), tot = sum(list, x => x.v); if (!tot) return ''; const R = 42, L = 2 * Math.PI * R; let off = 0;
+    const seg = list.map(x => { const len = x.v / tot * L, g = list.length > 1 ? 1.2 : 0, c = `<circle class="seg" cx="60" cy="60" r="${R}" fill="none" stroke="${x.c}" stroke-width="15" stroke-dasharray="${Math.max(0, len - g).toFixed(2)} ${(L - Math.max(0, len - g)).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 60 60)" data-ct="${esc(x.l)} · ${esc(fmt(x.v))} (${Math.round(x.v / tot * 100)} %)"/>`; off += len; return c; }).join('');
+    return `<div class="cwrap"><div class="cread" aria-live="polite">Touchez une part pour voir le détail</div><div class="dwrap"><svg viewBox="0 0 120 120" role="img" aria-label="Répartition des ventes par forfait"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--line)" stroke-width="15"/>${seg}<text x="60" y="58" text-anchor="middle" font-size="9" fill="var(--mut)">${esc(centre)}</text><text x="60" y="71" text-anchor="middle" font-size="11" font-weight="800" fill="var(--txt)">${Math.round(tot / 1000) >= 1 ? nf(tot / 1000, 1) + ' k' : nf(tot)}</text></svg>
+      <div class="dleg">${list.map(x => `<div class="dl" data-ct="${esc(x.l)} · ${esc(fmt(x.v))} (${Math.round(x.v / tot * 100)} %)"><i style="background:${x.c}"></i>${esc(x.l)}<b>${Math.round(x.v / tot * 100)} %</b></div>`).join('')}</div></div></div>`; };
+  const barsChart = (items, title) => { const mx = Math.max(...items.map(x => x.v), 1); return `<div class="cwrap"><div class="cread" aria-live="polite">${esc(title)} · touchez une barre</div><div class="ccols">${items.map(x => `<div class="ccol" data-ct="${esc(x.t)} · ${esc(fmt(x.v))}"><i style="height:${Math.round(x.v / mx * 100)}%"></i></div>`).join('')}</div><div class="clabels">${items.map(x => `<span>${esc(x.l)}</span>`).join('')}</div></div>`; };
+  const salesOn = (a, b) => sum(db.sales.filter(x => x.date >= a && x.date <= b), saleCDF);
+  const daysOf = (a, b) => { const o = []; for (let k = a, n = 0; k <= b && n < 400; k = addDays(k, 1), n++) o.push(k); return o; };
+  const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Bonjour ☀️' : h < 18 ? 'Bon après-midi 🌤️' : 'Bonsoir 🌙'; };
+  // count-up on every [data-count] number that appears (skipped when the device asks for less motion)
+  const countUp = el => { if (el.dataset.counted) return; el.dataset.counted = '1'; if (matchMedia('(prefers-reduced-motion:reduce)').matches) return; const to = +el.dataset.count, t0 = performance.now(); const step = now => { const k = Math.min(1, (now - t0) / 700), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(to * e); if (k < 1 && document.body.contains(el)) requestAnimationFrame(step); else el.textContent = fmt(to); }; requestAnimationFrame(step); };
+  { const v0 = $('view'); if (v0) new MutationObserver(() => v0.querySelectorAll('[data-count]:not([data-counted])').forEach(countUp)).observe(v0, { childList: true, subtree: true }); }
   const views = {};
   views.home = () => {
     if (!isMgr()) { const mine = db.sales.filter(x => x.date === today() && x.by === (me && me.name));
@@ -189,6 +231,10 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
     const inc = sum(S, saleCDF), out = sum(E, expCDF), net = inc - out, tickets = sum(S, s => s.qty);
     const byF = {}; S.forEach(s => { const o = byF[s.fid] = byF[s.fid] || { q: 0, a: 0 }; o.q += s.qty; o.a += s.amount; });
     const byM = {}; S.forEach(s => byM[s.mode] = (byM[s.mode] || 0) + s.amount);
+    const bR = st.per === 'month' ? r : [addDays(today(), -6), today()], bars = daysOf(bR[0], bR[1]).map(k => ({ l: k.slice(8), t: fdate(k), v: salesOn(k, k) }));
+    const pr = (() => { const el = Math.max(0, Math.round((new Date(r[1] + 'T12:00') - new Date(r[0] + 'T12:00')) / 864e5)); if (st.per === 'day') return [addDays(r[0], -1), addDays(r[0], -1)]; if (st.per === 'week') return [addDays(r[0], -7), addDays(r[0], -1)]; const a0 = iso(new Date(+r[0].slice(0, 4), +r[0].slice(5, 7) - 2, 1)); return [a0, addDays(a0, el)]; })();
+    const prevInc = salesOn(pr[0], pr[1]), delta = prevInc > 0 ? (inc - prevInc) / prevInc * 100 : null, PL = { day: 'hier', week: 'les 7 jours précédents', month: 'le mois dernier' }[st.per];
+    const spark = (() => { const v = bars.map(x => x.v), n = v.length; if (n < 2) return ''; const W = 200, H = 46, mx = Math.max(...v, 1), pts = v.map((y, i) => [Math.round(i / (n - 1) * W * 10) / 10, Math.round((H - 4 - y / mx * (H - 10)) * 10) / 10]), line = pts.map(q => q.join(',')).join(' '); return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><polygon points="0,${H} ${line} ${W},${H}" fill="url(#sg)"/><polyline points="${line}" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`; })();
     const stale = !db.lastBackup || (Date.now() - db.lastBackup) > 3 * 864e5;
     return { title: db.name, sub: fdate(r[0]) + (r[0] !== r[1] ? ' → ' + fdate(r[1]) : ''), html: `
       ${stale && (db.sales.length || db.expenses.length) ? `<div class="card warn" data-a="goset" style="cursor:pointer">⚠ Pas de sauvegarde récente. Touchez ici pour sauvegarder vos données.</div>` : ''}
@@ -196,9 +242,14 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
       ${dupBanner()}${pendBanner()}
       ${lowPaper().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">🖨️ Stock de tickets papier bas : ${lowPaper().map(f => `${esc(f.nom)} (${paperOf(f.id).length})`).join(', ')}.</div>` : ''}
       ${lowStock().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">🎟 Stock de tickets bas : ${lowStock().map(f => `${esc(f.nom)} (${stockOf(f.id).length})`).join(', ')}. Touchez ici pour générer un lot.</div>` : ''}
-      ${chips('per', st.per, [['day', "Aujourd'hui"], ['week', '7 jours'], ['month', 'Ce mois']])}
-      <div class="grid"><div class="stat"><small>Ventes</small><b class="ok">${fmt(inc)}</b><small>${tickets} ticket(s)</small></div><div class="stat"><small>Dépenses</small><b class="bad">${fmt(out)}</b><small>${E.length} dépense(s)</small></div></div>
-      <div class="card"><small class="mut">Bénéfice</small><div class="total ${net >= 0 ? 'ok' : 'bad'}">${fmt(net)}</div><div class="mut">≈ ${fmt(usdOf(net), 'USD')} (1 $ = ${nf(db.rate)} FC)</div></div>
+      <section class="hero"><small>${greet()}${me ? ', ' + esc(me.name) : ''}</small><div class="hero-greet">${esc(fdate(r[0]))}${r[0] !== r[1] ? ' → ' + esc(fdate(r[1])) : ''}</div>
+        <small>🎫 Ventes · ${st.per === 'day' ? "aujourd'hui" : st.per === 'week' ? '7 derniers jours' : 'ce mois'}</small><div class="hero-num" data-count="${inc}">${fmt(inc)}</div>
+        ${delta === null ? `<span class="delta">${tickets} ticket(s)</span>` : `<span class="delta ${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(delta))} % vs ${PL}</span> <small>${tickets} ticket(s)</small>`}
+        ${spark}${chips('per', st.per, [['day', "Aujourd'hui"], ['week', '7 jours'], ['month', 'Ce mois']])}</section>
+      <div class="grid"><div class="stat"><small>Dépenses</small><b class="bad" data-count="${out}">${fmt(out)}</b><small>${E.length} dépense(s)</small></div><div class="stat"><small>Bénéfice</small><b class="${net >= 0 ? 'ok' : 'bad'}" data-count="${net}">${fmt(net)}</b><small>≈ ${fmt(usdOf(net), 'USD')}</small></div></div>
+      <div class="mut" style="margin:-4px 4px 14px;font-size:13px">Taux : 1 $ = ${nf(db.rate)} FC</div>
+      ${Object.keys(byF).length ? '<h2>Répartition des ventes</h2>' + donut(Object.entries(byF).map(([id, o]) => ({ l: fname(id), v: o.a, c: fcol(db.forfaits.find(f => f.id === id) || { id }) })), 'Ventes') : ''}
+      ${bars.some(x => x.v > 0) ? '<h2>Ventes par jour</h2>' + barsChart(bars, st.per === 'month' ? 'Ce mois' : '7 derniers jours') : ''}
       <h2>Par forfait</h2><div class="card">${Object.keys(byF).length ? Object.entries(byF).map(([id, o]) => `<div class="row"><div class="g"><b><span style="color:${fcol(db.forfaits.find(f => f.id === id) || { id })}">●</span> ${esc(fname(id))}</b><small>${o.q} ticket(s)</small></div><b>${fmt(o.a)}</b></div>`).join('') : '<div class="empty">Aucune vente sur cette période.</div>'}</div>
       <h2>Par mode de paiement</h2><div class="card">${Object.keys(byM).length ? Object.entries(byM).map(([m, a]) => `<div class="row"><div class="g">${esc(m)}</div><b>${fmt(a)}</b></div>`).join('') : '<div class="empty">—</div>'}</div>
       <button class="btn sec full" data-a="tab" data-v="sales" style="margin-top:0">📋 Voir chaque vente (heure, code)</button>` };
