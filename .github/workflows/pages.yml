@@ -24,6 +24,7 @@ jobs:
           mkdir _site
           cp index.html manifest.webmanifest sw.js logo.svg *.png _site/
           cp -r sync _site/sync
+          cp -r fonts _site/fonts
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
