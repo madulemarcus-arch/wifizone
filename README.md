@@ -127,3 +127,9 @@ Section `views.*` (écrans), `A` (actions), `db` (données), `modal`. Commentair
 - **Vibration légère** sur la barre du bas, le choix du forfait, la quantité et les filtres, si le téléphone le permet.
 - **Effet au toucher** sur les puces, les cartes cliquables, la quantité et la barre du bas.
 - Confettis, coche et effets sont désactivés quand l'appareil demande de réduire les animations.
+
+## Design (étape 3) : ordinateur
+
+- **Menu à gauche** (écrans de 1024 px et plus) à la place de la barre du bas, avec le logo, l'onglet actif en couleur et Tickets mis en avant. Sur téléphone, rien ne change.
+- **Accueil sur deux colonnes** (à partir de 1280 px) : la carte des ventes en grand, puis répartition par forfait / ventes par jour, et par forfait / par mode de paiement côte à côte.
+- **Raccourcis clavier** (ignorés pendant la saisie, avec une fenêtre ouverte ou sur l'écran verrouillé, et limités aux droits du profil) : `H` accueil, `V` vendre, `T` tickets, `D` dépenses, `C` clôture, `R` rapport, `S` réglages ; sur Vendre : `1`…`9` forfait, `+` / `−` quantité, `Entrée` enregistrer la vente ; `?` aide (aussi dans le menu de gauche).
