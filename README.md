@@ -140,3 +140,7 @@ Section `views.*` (écrans), `A` (actions), `db` (données), `modal`. Commentair
 - **Clôture du jour** : carte avec la date, l'état (« Pas encore clôturée », « ✓ Clôturée » ou « ⚠ Écart … »), les ventes, les dépenses, le bénéfice et le cash attendu. Une clôture **sans aucun écart** déclenche des confettis 🎉.
 - **Réglages** : en-tête avec le logo, le nom, la version, le profil connecté et trois pastilles d'état : PIN, sauvegarde (récente en vert, ancienne ou absente en jaune), synchronisation. Un toucher sur « Sans PIN » ou sur la sauvegarde lance l'action directement (selon les droits du profil).
 - À l'impression, les cartes s'impriment en noir sur blanc.
+
+## Installer l'application
+
+Réglages → Application → **📲 Installer l'application sur ce téléphone** : ouvre directement la fenêtre d'installation du navigateur quand elle est disponible, sinon explique la marche à suivre (Chrome → ⋮ → « Installer l'application »). Le fichier d'installation (`manifest.webmanifest`) est aligné sur celui de CISPOLstore (icônes standard, nouvel identifiant `wifizone-manager-app`).

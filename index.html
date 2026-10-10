@@ -217,7 +217,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v26'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v27'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -484,7 +484,8 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     <h2>Sauvegarde</h2><div class="card"><p class="mut" style="margin-top:0">Vos données sont dans ce téléphone. ${db.lastBackup ? 'Dernière sauvegarde : ' + new Date(db.lastBackup).toLocaleString('fr-FR') : '<b class="warn">Aucune sauvegarde faite.</b>'}</p>
       <div class="bar"><button class="btn" data-a="backup">⬇ Sauvegarder</button><button class="btn sec" data-a="restore">⬆ Restaurer</button></div><input type="file" id="rfile" accept=".json,application/json" hidden></div>
     <h2>Application</h2><div class="card"><div class="row"><div class="g"><b>Version ${VERSION}</b><small>Si une nouveauté n'apparaît pas, forcez la mise à jour : l'application recharge sa dernière version (vos données ne sont pas touchées).</small></div></div>
-      <button class="btn full" data-a="update">🔄 Mettre à jour l'application</button></div>
+      <button class="btn full" data-a="update">🔄 Mettre à jour l'application</button>
+      <button class="btn sec full" data-a="install">📲 Installer l'application sur ce téléphone</button></div>
     <p class="mut" style="text-align:center">WiFi Zone Manager · ${VERSION}</p>` });
 
   const NAV = [['home', '🏠', 'Accueil'], ['sell', '🎫', 'Vendre'], ['tix', '🎟️', 'Tickets'], ['exp', '💸', 'Dépenses'], ['day', '🌙', 'Clôture'], ['rep', '📊', 'Rapport'], ['set', '⚙️', 'Réglages']];
@@ -863,6 +864,13 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   };
   // ---------- keyboard shortcuts (computers) ----------
   const KEYS_NAV = { h: ['home', 'Accueil'], v: ['sell', 'Vendre'], t: ['tix', 'Tickets'], d: ['exp', 'Dépenses'], c: ['day', 'Clôture'], r: ['rep', 'Rapport'], s: ['set', 'Réglages'] };
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__installEv = e; });
+  window.addEventListener('appinstalled', () => { window.__installEv = null; toast('WiFi Zone est installée ✓'); });
+  A.install = async () => {
+    if (matchMedia('(display-mode: standalone)').matches) return toast("L'application est déjà installée");
+    if (window.__installEv) { const ev = window.__installEv; window.__installEv = null; ev.prompt(); try { const r = await ev.userChoice; if (r.outcome === 'accepted') toast('Installation en cours…'); } catch (e) {} return; }
+    modal('Installer WiFi Zone', '<p style="margin-top:0">Le navigateur ne propose pas encore l\'installation. Dans <b>Chrome</b> : touchez ⋮ (en haut à droite), puis <b>« Installer l\'application »</b>.</p><p class="mut">Si ce choix n\'existe pas : ouvrez cette page dans Chrome (pas dans une application intégrée), attendez qu\'elle soit entièrement chargée, rechargez-la une fois, puis rouvrez le menu.</p>');
+  };
   A.keys = () => modal('⌨ Raccourcis clavier', `<div class="keys"><h2 style="margin:6px 0">Aller à</h2>${Object.entries(KEYS_NAV).filter(([, [v]]) => canView(v)).map(([k, [, t]]) => `<div><kbd>${k.toUpperCase()}</kbd><span>${t}</span></div>`).join('')}<h2 style="margin:14px 0 6px">Sur l'écran Vendre</h2><div><kbd>+</kbd> <kbd>−</kbd><span>Quantité</span></div><div><kbd>1</kbd>…<kbd>9</kbd><span>Choisir le forfait</span></div><div><kbd>Entrée</kbd><span>Enregistrer la vente</span></div><h2 style="margin:14px 0 6px">Partout</h2><div><kbd>?</kbd><span>Cette aide</span></div><div><kbd>Échap</kbd><span>Fermer la fenêtre</span></div></div>`);
   document.addEventListener('keydown', e => {
     const t = e.target; if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;

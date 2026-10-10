@@ -3,12 +3,12 @@
   "short_name": "WiFi Zone",
   "description": "Ventes de tickets, dépenses, clôture du jour et rapports WiFi Zone",
   "lang": "fr",
-  "id": "wifizone-manager",
+  "id": "wifizone-manager-app",
   "start_url": "./index.html?source=pwa",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0a1f44",
+  "background_color": "#ffffff",
   "theme_color": "#0a1f44",
   "icons": [
     {
@@ -22,12 +22,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
-    },
-    {
-      "src": "icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ]
 }
