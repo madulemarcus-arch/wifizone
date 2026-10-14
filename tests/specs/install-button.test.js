@@ -1,0 +1,10 @@
+const BASE = process.env.BASE_URL || 'http://localhost:8775';
+const { chromium, devices } = require('playwright');let f=0;const ok=(n,c,x='')=>{console.log((c?'PASS ':'FAIL ')+n+(x?' '+x:''));if(!c)f++};
+(async()=>{const b=await chromium.launch({executablePath: process.env.CHROMIUM_PATH || undefined});const p=await (await b.newContext({...devices['Pixel 5']})).newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
+await p.goto(BASE + '/index.html');await p.waitForTimeout(500);
+await p.evaluate(()=>{const k='wifizone-v1';const db=JSON.parse(localStorage.getItem(k)||'{}');db.noProfiles=true;localStorage.setItem(k,JSON.stringify(db));location.reload()});await p.waitForTimeout(900);
+await p.click('nav button[data-v=set]');await p.waitForTimeout(400);ok('install button in Réglages',await p.isVisible('[data-a=install]'));
+await p.click('[data-a=install]');await p.waitForTimeout(300);ok('no prompt available -> help dialog',/Installer l'application/.test(await p.innerText('dialog')));await p.keyboard.press('Escape');
+await p.evaluate(()=>{window.__called=0;window.__installEv={prompt(){window.__called++},userChoice:Promise.resolve({outcome:'accepted'})}});await p.click('[data-a=install]');await p.waitForTimeout(300);ok('prompt event is used when available',await p.evaluate(()=>window.__called===1));
+const m=await p.evaluate(()=>fetch('manifest.webmanifest').then(r=>r.json()));ok('manifest: any icons plus one separate maskable icon, stable id',m.icons.filter(i=>i.purpose==='any').length===2&&m.icons.filter(i=>i.purpose==='maskable').length===1&&m.id==='wifizone-manager-app',JSON.stringify(m.icons.length));
+console.log(errs);await b.close();process.exit(f?1:0)})();

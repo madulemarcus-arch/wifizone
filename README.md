@@ -143,4 +143,8 @@ Section `views.*` (écrans), `A` (actions), `db` (données), `modal`. Commentair
 
 ## Installer l'application
 
-Réglages → Application → **📲 Installer l'application sur ce téléphone** : ouvre directement la fenêtre d'installation du navigateur quand elle est disponible, sinon explique la marche à suivre (Chrome → ⋮ → « Installer l'application »). Le fichier d'installation (`manifest.webmanifest`) est aligné sur celui de CISPOLstore (icônes standard, nouvel identifiant `wifizone-manager-app`).
+Réglages → Application → **📲 Installer l'application sur ce téléphone** : ouvre directement la fenêtre d'installation du navigateur quand elle est disponible, sinon explique la marche à suivre (Chrome → ⋮ → « Installer l'application »). Le fichier d'installation (`manifest.webmanifest`) est aligné sur celui de CISPOLstore (nouvel identifiant `wifizone-manager-app`, icônes standard plus une icône « adaptative » pour Android).
+
+## Publier sur le Google Play Store
+
+Le dossier `play/` contient tout ce qu'il faut (guide pas à pas, textes de la fiche, captures avec données fictives, modèle `assetlinks.json`) : voir `play/README.md`. Côté application : manifeste « Android » (icône adaptative, 4 raccourcis `?go=sell|tix|day|rep`), page `privacy.html` liée dans Réglages, tests automatiques dans `tests/` (`cd tests && npm install && npx playwright install chromium && node run.js`, aussi sur GitHub à chaque push).

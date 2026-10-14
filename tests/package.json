@@ -1,0 +1,11 @@
+{
+  "name": "wifizone-tests",
+  "private": true,
+  "description": "Tests automatiques de WiFi Zone Manager (contrôles statiques + parcours dans un vrai navigateur)",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

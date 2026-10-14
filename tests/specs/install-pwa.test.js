@@ -1,0 +1,12 @@
+const BASE = process.env.BASE_URL || 'http://localhost:8775';
+const { chromium, devices } = require('playwright');let f=0;const ok=(n,c,x='')=>{console.log((c?'PASS ':'FAIL ')+n+(x?' '+x:''));if(!c)f++};
+(async()=>{const b=await chromium.launch({executablePath: process.env.CHROMIUM_PATH || undefined});const p=await (await b.newContext({...devices['Pixel 5']})).newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.accept());
+await p.goto(BASE + '/index.html');await p.waitForTimeout(500);
+await p.evaluate(()=>{const k='wifizone-v1';const db=JSON.parse(localStorage.getItem(k)||'{}');const t=new Date();const iso=d=>d.toISOString().slice(0,10);db.noProfiles=true;db.sales=[{id:'a',date:iso(t),time:'09:00',fid:'J',qty:2,amount:2000,mode:'Cash',ref:''},{id:'b',date:iso(new Date(t-864e5)),time:'09:00',fid:'V',qty:1,amount:1000,mode:'M-Pesa',ref:''}];db.expenses=[];localStorage.setItem(k,JSON.stringify(db));location.reload()});
+await p.waitForTimeout(900);
+let t=await p.innerText('.hero');ok('hero shows 2 000 FC, +100 % vs hier, greeting',/2\s?000 FC/.test(t)&&/▲ 100 % vs hier/.test(t)&&/Bon(jour|soir|\s+après-midi)/.test(t),t.replace(/\n/g,' | ').slice(0,200));
+ok('donut + bars',await p.isVisible('.cwrap svg')&&(await p.$$('.ccol')).length===7);
+await p.click('.dl');ok('tap legend shows detail',/Jour · 2\s?000 FC \(100 %\)/.test(await p.innerText('.cread')));
+await p.click('[data-a=per][data-v=month]');await p.waitForTimeout(800);ok('month period works',/ce mois/.test(await p.innerText('.hero')));
+await p.click('nav button[data-v=sell]');await p.waitForTimeout(400);await p.click('.fo button');await p.click('#ok, .btn.full:not(.sec)').catch(()=>{});
+console.log(errs);await b.close();process.exit(f?1:0)})();
