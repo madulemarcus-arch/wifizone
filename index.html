@@ -217,7 +217,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v27'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v28'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -485,7 +485,8 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       <div class="bar"><button class="btn" data-a="backup">⬇ Sauvegarder</button><button class="btn sec" data-a="restore">⬆ Restaurer</button></div><input type="file" id="rfile" accept=".json,application/json" hidden></div>
     <h2>Application</h2><div class="card"><div class="row"><div class="g"><b>Version ${VERSION}</b><small>Si une nouveauté n'apparaît pas, forcez la mise à jour : l'application recharge sa dernière version (vos données ne sont pas touchées).</small></div></div>
       <button class="btn full" data-a="update">🔄 Mettre à jour l'application</button>
-      <button class="btn sec full" data-a="install">📲 Installer l'application sur ce téléphone</button></div>
+      <button class="btn sec full" data-a="install">📲 Installer l'application sur ce téléphone</button>
+      <a class="btn sec full" href="privacy.html" target="_blank" rel="noopener" style="text-decoration:none;text-align:center">🔒 Politique de confidentialité</a></div>
     <p class="mut" style="text-align:center">WiFi Zone Manager · ${VERSION}</p>` });
 
   const NAV = [['home', '🏠', 'Accueil'], ['sell', '🎫', 'Vendre'], ['tix', '🎟️', 'Tickets'], ['exp', '💸', 'Dépenses'], ['day', '🌙', 'Clôture'], ['rep', '📊', 'Rapport'], ['set', '⚙️', 'Réglages']];
@@ -900,6 +901,8 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   });
   { const lb = $('lockBtn'); if (lb) lb.onclick = () => A.lockn(); }
   const sb = $('syncBtn'); if (sb) { setStatus(SY.status); sb.onclick = () => { if (!cfg) A.tab('set'); else A.syncnow(); }; }
+  // App shortcuts (long-press menu on Android): ?go=<screen>; an unknown screen is ignored and a profile without access falls back to Vendre after sign-in
+  { const g = new URLSearchParams(location.search).get('go'); if (g && views[g] && g !== 'sales') st.tab = g; }
   draw(); unlockScreen(); if (cfg) schedule(1500);
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     // a new version was installed in the background: offer to reload (the open page still shows the old one)

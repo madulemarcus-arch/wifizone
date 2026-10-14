@@ -22,6 +22,64 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Vendre un ticket",
+      "short_name": "Vendre",
+      "url": "./index.html?source=shortcut&go=sell",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "short_name": "Tickets",
+      "url": "./index.html?source=shortcut&go=tix",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Clôture du jour",
+      "short_name": "Clôture",
+      "url": "./index.html?source=shortcut&go=day",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Rapport",
+      "short_name": "Rapport",
+      "url": "./index.html?source=shortcut&go=rep",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

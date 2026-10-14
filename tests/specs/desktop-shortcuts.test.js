@@ -1,0 +1,23 @@
+const BASE = process.env.BASE_URL || 'http://localhost:8775';
+const { chromium, devices } = require('playwright');let f=0;const ok=(n,c,x='')=>{console.log((c?'PASS ':'FAIL ')+n+(x?' '+x:''));if(!c)f++};
+(async()=>{const b=await chromium.launch({executablePath: process.env.CHROMIUM_PATH || undefined});const p=await (await b.newContext({viewport:{width:1440,height:900}})).newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.accept());
+await p.goto(BASE + '/index.html');await p.waitForTimeout(500);
+await p.evaluate(()=>{const k='wifizone-v1';const db=JSON.parse(localStorage.getItem(k)||'{}');const t=new Date();const iso=d=>d.toISOString().slice(0,10);db.noProfiles=true;db.sales=[];for(let i=0;i<60;i++){const d=new Date(t-i*864e5/3);const f=['V','J','S','M'][i%4];db.sales.push({id:'s'+i,ts:+d,date:iso(d),fid:f,qty:1,amount:{V:500,J:1000,S:7000,M:30000}[f],mode:['Cash','M-Pesa','Airtel Money'][i%3],ref:''});}db.expenses=[{id:'e1',ts:1,date:iso(t),cat:'Salaire',label:'',amount:20000,cur:'CDF',rate:2400,mode:'Cash'}];db.lastBackup=Date.now();localStorage.setItem(k,JSON.stringify(db));location.reload()});
+await p.waitForTimeout(900);
+const tab=()=>p.evaluate(()=>document.querySelector('nav button.on')?.dataset.v);
+const nb=await p.evaluate(()=>{const n=document.getElementById('nav');return {w:n.getBoundingClientRect().width,left:n.getBoundingClientRect().left,dir:getComputedStyle(n).flexDirection}});ok('sidebar on desktop',nb.w>200&&nb.left===0&&nb.dir==='column',JSON.stringify(nb));
+ok('2-column home blocks',(await p.$$('main[data-v=home] > .blk')).length>=2&&await p.evaluate(()=>getComputedStyle(document.getElementById('view')).display==='grid'));
+await p.screenshot({path:'d3-home.png'});
+await p.keyboard.press('v');await p.waitForTimeout(300);ok('V -> Vendre',await tab()==='sell');
+await p.keyboard.press('2');await p.waitForTimeout(200);ok('2 selects 2nd forfait',await p.evaluate(()=>document.querySelectorAll('.fo button')[1].classList.contains('on')));
+await p.keyboard.press('+');await p.keyboard.press('+');await p.waitForTimeout(200);ok('+ twice -> qty 3',(await p.innerText('.qty b')).trim()==='3');
+await p.keyboard.press('Enter');await p.waitForTimeout(500);ok('Enter registers sale',await p.evaluate(()=>JSON.parse(localStorage.getItem('wifizone-v1')).sales.some(s=>s.qty===3&&s.fid==='J')));
+await p.keyboard.press('r');await p.waitForTimeout(300);ok('R -> Rapport',await tab()==='rep');
+await p.keyboard.press('h');await p.waitForTimeout(300);ok('H -> Accueil',await tab()==='home');
+await p.keyboard.press('?');await p.waitForTimeout(300);ok('? opens help',/Raccourcis clavier/.test(await p.innerText('dialog')));await p.screenshot({path:'d3-keys.png'});
+await p.keyboard.press('Escape');await p.waitForTimeout(300);
+await p.keyboard.press('d');await p.waitForTimeout(300);await p.click('[data-a=newexp]');await p.waitForTimeout(300);await p.focus('#e_label');await p.keyboard.type('vsr');ok('typing in a field ignores shortcuts',(await p.inputValue('#e_label'))==='vsr'&&await tab()==='exp');
+// mobile unaffected
+const m=await (await b.newContext({...devices['Pixel 5']})).newPage();await m.goto(BASE + '/index.html');await m.waitForTimeout(600);
+const mb=await m.evaluate(()=>{const n=document.getElementById('nav').getBoundingClientRect();return {bottom:Math.round(window.innerHeight-n.bottom),w:Math.round(n.width),vw:innerWidth,brand:getComputedStyle(document.querySelector('.nav-brand')).display}});ok('mobile: bottom bar, brand hidden',mb.brand==='none'&&mb.bottom<30&&mb.w<mb.vw,JSON.stringify(mb));
+console.log(errs);await b.close();process.exit(f?1:0)})();

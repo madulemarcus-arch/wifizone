@@ -22,7 +22,7 @@ jobs:
       - name: Assembler le site
         run: |
           mkdir _site
-          cp index.html manifest.webmanifest sw.js logo.svg *.png _site/
+          cp index.html privacy.html manifest.webmanifest sw.js logo.svg *.png _site/
           cp -r sync _site/sync
           cp -r fonts _site/fonts
       - uses: actions/configure-pages@v5
