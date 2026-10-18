@@ -155,3 +155,9 @@ Le dossier `play/` contient tout ce qu'il faut (guide pas à pas, textes de la f
 ## Tableau de bord animé
 
 L'écran **Accueil** est animé comme dans CISPOLstore Manager : étoiles reliées en réseau, lueurs néon, et une scène qui change au hasard (train de satellites, pluie de météores, comète, ondes Wi-Fi, orbites, vague de lumière), sur toute la page et dans la carte des ventes. Réglages → Apparence → **✨ Animation de l'accueil** : *Aucune*, *Calme*, *Équilibrée* (par défaut) ou *Intense* (rythme, quantité et fréquence des scènes). Le choix est propre à l'appareil. L'animation reste légère (une seule boucle à ~30 images/s, canvas sans clic) et s'arrête seule sur les autres écrans, quand l'application passe en arrière-plan, avec « réduire les animations » ou l'économiseur de données, et à l'impression.
+
+## Rapport par vendeur
+
+Pour savoir **ce que chaque vendeur a vendu** : écran **Rapport → 👥 Rapport par vendeur** (réservé aux gérants). Période au choix : *Aujourd'hui*, *7 jours*, *Ce mois*, *Tout*. L'écran affiche le total (montant, tickets, ventes, nombre de vendeurs actifs), puis **un classement** (🥇🥈🥉) avec, pour chaque vendeur : le montant, les tickets, sa **part du total** (barre et %), l'heure de sa dernière vente, le détail **par forfait** (quantité et montant, aux couleurs des forfaits), **par mode de paiement** et le nombre de tickets papier. Un vendeur sans vente sur la période apparaît quand même (« Aucune vente »), et les ventes faites sans profil sont regroupées sous **« Sans vendeur »**. Boutons : **WhatsApp** (classement en texte), **CSV** (une ligne par vendeur, avec une colonne de tickets par forfait) et **Imprimer**.
+
+Chaque vente est attribuée au **profil connecté** au moment de la vente : activez les profils (Réglages → Profils) pour que chaque vendeur ait son code PIN. Un vendeur ne voit pas ce rapport (il garde « Mes ventes aujourd'hui » sur son accueil).

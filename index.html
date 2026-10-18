@@ -129,6 +129,11 @@ body.imprime #planche{page:tickets;display:grid;grid-template-columns:repeat(4,1
 .tk-qr{flex:none;width:15mm;height:15mm}
 .tk-test{font-size:6pt;font-weight:800;letter-spacing:.1em;color:#d85833}}
 
+/* ---------- Report by seller ---------- */
+.vbar{height:7px;border-radius:99px;background:var(--line);overflow:hidden;margin:4px 0 8px}.vbar i{display:block;height:100%;border-radius:99px;background:var(--g)}
+.vdet{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:13px;margin-top:6px}.vchip{background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:2px 10px}
+.vdet.mut{color:var(--mut)}
+
 /* ---------- Animated dashboard: page sky behind the content, sky inside the sales card ---------- */
 #sky{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 #view{position:relative;z-index:1}
@@ -244,7 +249,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v31'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v32'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -272,7 +277,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   const usdOf = cdf => cdf / db.rate;
   const both = cdf => `${fmt(cdf)} <small>≈ ${fmt(usdOf(cdf), 'USD')}</small>`;
 
-  const st = { tab: 'home', src: 'app', sper: 'day', sq: '', tfid: 'J', tn: 50, per: 'day', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7) };
+  const st = { tab: 'home', src: 'app', sper: 'day', sq: '', tfid: 'J', tn: 50, per: 'day', vper: 'month', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7) };
   const range = per => { const t = today(); if (per === 'day') return [t, t]; if (per === 'week') return [addDays(t, -6), t]; return [t.slice(0, 7) + '-01', t]; };
   const inR = (d, r) => d >= r[0] && d <= r[1];
   const saleCDF = s => s.amount, expCDF = e => toCDF(e.amount, e.cur, e.rate);
@@ -561,6 +566,32 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     <div class="card" style="margin-top:10px"><b id="stot">${salesTot(l)}</b></div>
     <div class="card" id="slist">${saleRows(l)}</div>
     <div class="bar noprint"><button class="btn sec" data-a="salescsv">⬇ CSV (avec codes)</button><button class="btn sec" data-a="print">🖨️ Imprimer</button></div>` }; };
+
+  // ---------- Report by seller: what each seller sold (tickets, amount, share, forfaits, payment modes) ----------
+  const VPER = { day: "aujourd'hui", week: 'les 7 derniers jours', month: 'ce mois', all: 'depuis le début' };
+  const vData = per => {
+    const r = per === 'all' ? ['0000-00-00', '9999-99-99'] : range(per), S = db.sales.filter(x => inR(x.date, r)), by = {};
+    const get = n => by[n] = by[n] || { name: n, q: 0, a: 0, n: 0, byF: {}, byM: {}, paper: 0, last: 0 };
+    db.users.forEach(u => get(u.name)); // a seller without any sale still appears, with 0
+    S.forEach(x => { const o = get(x.by || ''), f = o.byF[x.fid] = o.byF[x.fid] || { q: 0, a: 0 }; o.q += x.qty; o.a += x.amount; o.n++; f.q += x.qty; f.a += x.amount; o.byM[x.mode] = (o.byM[x.mode] || 0) + x.amount; if (x.paper) o.paper += x.qty; o.last = Math.max(o.last, x.ts || 0); });
+    const list = Object.values(by).filter(o => o.name || o.n).sort((a, b) => b.a - a.a || b.q - a.q || a.name.localeCompare(b.name)), tot = sum(S, saleCDF);
+    return { per, list, tot, tickets: sum(S, x => x.qty), sales: S.length, active: list.filter(o => o.n && o.name).length };
+  };
+  const vName = o => o.name || 'Sans vendeur';
+  const pct = (a, t) => t > 0 ? Math.round(a / t * 100) : 0;
+  const vText = d => { const MED = ['🥇', '🥈', '🥉'];
+    return [`👥 ${db.name} — Ventes par vendeur, ${VPER[d.per]}`, '', `🎫 Total : ${fmt(d.tot)} · ${d.tickets} ticket(s)`, '', ...d.list.map((o, i) => `${o.n ? (MED[i] || '▪️') : '💤'} ${vName(o)} : ${fmt(o.a)} · ${o.q} ticket(s) · ${pct(o.a, d.tot)} %` + (o.n ? '\n    ' + Object.entries(o.byF).map(([id, f]) => `${f.q} ${fname(id)}`).join(', ') : ''))].join('\n'); };
+  views.vend = () => { const d = vData(st.vper), mx = Math.max(1, ...d.list.map(o => o.a)), MED = ['🥇', '🥈', '🥉'];
+    return { title: 'Rapport par vendeur', sub: 'Ce que chaque vendeur a vendu', html: `
+    <button class="btn sec sm noprint" data-a="tab" data-v="rep" style="margin-bottom:10px">‹ Retour au rapport</button>
+    <div class="noprint">${chips('vper', st.vper, [['day', "Aujourd'hui"], ['week', '7 jours'], ['month', 'Ce mois'], ['all', 'Tout']])}</div>
+    <section class="hero"><small>👥 Ventes ${esc(VPER[d.per])}</small><div class="hero-num" data-count="${d.tot}">${fmt(d.tot)}</div><small>${d.tickets} ticket(s) · ${d.sales} vente(s) · ${d.active} vendeur(s) actif(s)</small></section>
+    ${d.list.length ? d.list.map((o, i) => `<div class="card vcard"><div class="row" style="padding-top:0"><div class="g"><b>${o.n ? (MED[i] || '▪️') : '💤'} ${esc(vName(o))}</b><small>${o.n ? `${o.n} vente(s) · dernière à ${hhmm(o.last)}` : 'Aucune vente sur la période'}${(() => { const u = db.users.find(x => x.name === o.name); return u ? ' · ' + esc(ROLES[u.role] || '') : ''; })()}</small></div><div style="text-align:right"><b>${fmt(o.a)}</b><small style="display:block">${o.q} ticket(s) · ${pct(o.a, d.tot)} %</small></div></div>
+      <div class="vbar"><i style="width:${Math.round(o.a / mx * 100)}%"></i></div>
+      ${o.n ? `<div class="vdet">${Object.entries(o.byF).sort((a, b) => b[1].a - a[1].a).map(([id, f]) => `<span class="vchip"><span style="color:${fcol(db.forfaits.find(x => x.id === id) || { id })}">●</span> ${esc(fname(id))} × ${f.q} <b>${fmt(f.a)}</b></span>`).join('')}</div>
+      <div class="vdet mut">${Object.entries(o.byM).sort((a, b) => b[1] - a[1]).map(([m, a]) => `<span>${MODEI[m] || ''} ${esc(m)} ${fmt(a)}</span>`).join(' · ')}${o.paper ? ` · 🖨️ ${o.paper} papier` : ''}</div>` : ''}</div>`).join('') : '<div class="card"><div class="empty">Aucune vente sur cette période.</div></div>'}
+    <p class="mut noprint">Les ventes sont attribuées au profil connecté au moment de la vente. Sans profils (réglage « Profils »), tout est regroupé sous « Sans vendeur ».</p>
+    <div class="bar noprint"><button class="btn" data-a="vwa">💬 WhatsApp</button><button class="btn sec" data-a="vcsv">⬇ CSV</button><button class="btn sec" data-a="print">🖨️ Imprimer</button></div>` }; };
   views.rep = () => {
     const x = monthData(st.rm), days = Object.entries(x.byD).sort((a, b) => b[0].localeCompare(a[0])), pm = iso(new Date(+st.rm.slice(0, 4), +st.rm.slice(5, 7) - 2, 1)).slice(0, 7), pInc = monthData(pm).inc, pd = pInc > 0 ? (x.inc - pInc) / pInc * 100 : null;
     return { title: 'Rapport du mois', sub: monthName(st.rm), html: `
@@ -574,6 +605,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       <h2>Dépenses par catégorie</h2><div class="card">${Object.keys(x.byC).length ? Object.entries(x.byC).sort((a, b) => b[1] - a[1]).map(([c, a]) => `<div class="row"><div class="g">${esc(c)}</div><b class="bad">${fmt(a)}</b></div>`).join('') : '<div class="empty">—</div>'}</div>
       <h2>Jour par jour</h2><div class="card">${days.length ? days.map(([d, o]) => `<div class="row"><div class="g"><b>${fdate(d)}</b><small>Ventes ${fmt(o.i)} · Dépenses ${fmt(o.o)}</small></div><b class="${o.i - o.o >= 0 ? 'ok' : 'bad'}">${fmt(o.i - o.o)}</b></div>`).join('') : '<div class="empty">—</div>'}</div>
       <button class="btn sec full noprint" data-a="tab" data-v="sales" style="margin:0 0 12px">📋 Toutes les ventes (avec heure et code)</button>
+      <button class="btn sec full noprint" data-a="tab" data-v="vend" style="margin:0 0 12px">👥 Rapport par vendeur</button>
       <div class="bar noprint"><button class="btn" data-a="mwa">💬 WhatsApp</button><button class="btn sec" data-a="csv">⬇ CSV</button><button class="btn sec" data-a="print">🖨️ Imprimer</button></div>` };
   };
   const setHero = () => { const lb = db.lastBackup ? Math.floor((Date.now() - db.lastBackup) / 864e5) : null, sy = SY && SY.status !== 'off', can = a => canAct(a);
@@ -696,7 +728,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   const draw = () => {
     if (!canView(st.tab)) st.tab = 'sell';
     const v = views[st.tab](); $('ttl').textContent = v.title; $('sub').textContent = (v.sub || '') + (me ? ' · 👤 ' + me.name : ''); { const lb = $('lockBtn'); if (lb) lb.style.display = (db.pin || profilesOn()) ? 'grid' : 'none'; } $('view').innerHTML = v.html;
-    $('nav').innerHTML = NAV.filter(([k]) => canView(k)).map(([k, i, t]) => `<button class="${(st.tab === 'sales' ? 'rep' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
+    $('nav').innerHTML = NAV.filter(([k]) => canView(k)).map(([k, i, t]) => `<button class="${(st.tab === 'sales' || st.tab === 'vend' ? 'rep' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
     $('nav').insertAdjacentHTML('afterbegin', `<div class="nav-brand"><i></i>${esc(db.name)}</div>`); $('nav').insertAdjacentHTML('beforeend', '<button class="nav-keys" data-a="keys"><b>⌨</b>Raccourcis <kbd>?</kbd></button>');
     $('view').dataset.v = st.tab; if (st.tab === 'home') { const m = $('view'); [...m.querySelectorAll(':scope > h2')].forEach(h => { const n = h.nextElementSibling; if (!n) return; const w = document.createElement('section'); w.className = 'blk'; h.before(w); w.append(h, n); }); }
     if ($('sq')) $('sq').oninput = () => { st.sq = $('sq').value; const l = salesFiltered(); $('slist').innerHTML = saleRows(l); $('stot').textContent = salesTot(l); };
@@ -1010,6 +1042,9 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     mnav: v => { const d = new Date(st.rm + '-15T12:00:00'); d.setMonth(d.getMonth() + +v); const n = iso(d).slice(0, 7); if (n <= today().slice(0, 7)) { st.rm = n; draw(); } },
     mwa: () => share(monthText(monthData(st.rm))),
     sper: v => { st.sper = v; draw(); },
+    vper: v => { st.vper = v; draw(); }, vwa: () => share(vText(vData(st.vper))),
+    vcsv: () => { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`, d = vData(st.vper);
+      download(`wifizone-vendeurs-${st.vper}-${today()}.csv`, '\ufeff' + [['Vendeur', 'Ventes', 'Tickets', 'Montant FC', 'Part %', ...db.forfaits.map(f => f.nom + ' (tickets)')], ...d.list.map(o => [vName(o), o.n, o.q, o.a, pct(o.a, d.tot), ...db.forfaits.map(f => (o.byF[f.id] || { q: 0 }).q)])].map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
     salescsv: () => { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`, l = salesFiltered().slice().reverse();
       download(`wifizone-ventes-${st.sper}-${today()}.csv`, '\ufeff' + [['Date', 'Heure', 'Forfait', 'Quantité', 'Code', 'Support', 'Mode', 'Vendeur', 'Montant FC', 'Note'], ...l.map(x => [x.date, hhmm(x.ts), fname(x.fid), x.qty, x.ref || '', x.paper ? 'Papier' : 'Application', x.mode, x.by || '', x.amount, x.note || ''])].map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
     csv: () => { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`, x = monthData(st.rm), rows = [['Date', 'Heure', 'Type', 'Libellé', 'Code', 'Mode', 'Devise', 'Montant', 'Équivalent FC'],
