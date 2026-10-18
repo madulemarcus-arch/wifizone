@@ -31,8 +31,14 @@ await p.click('[data-a=tktest]');await p.waitForTimeout(500);
 r=await p.evaluate(()=>{const d=document.createElement('div');d.innerHTML=window.__sheet;return{n:d.querySelectorAll('.tk').length,qr:d.querySelectorAll('svg.tk-qr').length,txt:d.textContent,host:JSON.parse(localStorage.getItem('wifizone-v1')).loginHost}});
 ok('test sheet: 4 tickets with QR and ESSAI mark',r.n===4&&r.qr===4&&/ESSAI/.test(r.txt),JSON.stringify([r.n,r.qr]));
 ok('address saved as typed (http:// and path removed when printing)',r.host==='http://10.5.50.1/');
+// colour per forfait: the four default forfaits get four different colours, a lot has a single colour
+const cols=await p.evaluate(()=>{const d=document.createElement('div');d.innerHTML=window.__sheet;return[...d.querySelectorAll('.tk')].map(x=>x.getAttribute('style'))});
+ok('test sheet: one colour per forfait (4 different)',new Set(cols).size===4&&cols.every(c=>/--c:#[0-9a-f]{6}/i.test(c)),cols.join(' | '));
+await p.click('nav button[data-v=tix]');await p.waitForTimeout(300);await p.click('[data-a=lotprint]');await p.waitForTimeout(500);
+const lc=await p.evaluate(()=>{const d=document.createElement('div');d.innerHTML=window.__sheet;return[...new Set([...d.querySelectorAll('.tk')].map(x=>x.getAttribute('style')))]});
+ok('a lot of one forfait has a single colour matching its forfait',lc.length===1&&lc[0]===cols[1],lc.join(' | ')+' vs '+cols[1]);
 // real pagination: 40 tickets fit on one A4 page, 41 need a second one
-const pages=async n=>{await p.evaluate(n=>{const h=document.getElementById('planche').innerHTML,one=h.match(/<div class="tk">[\s\S]*$/)[0];const d=document.createElement('div');d.innerHTML=h;const t=d.querySelector('.tk').outerHTML;document.getElementById('planche').innerHTML=t.repeat(n);document.body.classList.add('imprime')},n);await p.emulateMedia({media:'print'});const pdf=await p.pdf({preferCSSPageSize:true,printBackground:true});await p.emulateMedia({media:'screen'});await p.evaluate(()=>document.body.classList.remove('imprime'));return (pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length};
+const pages=async n=>{await p.evaluate(n=>{const h=document.getElementById("planche").innerHTML;const d=document.createElement('div');d.innerHTML=h;const t=d.querySelector('.tk').outerHTML;document.getElementById('planche').innerHTML=t.repeat(n);document.body.classList.add('imprime')},n);await p.emulateMedia({media:'print'});const pdf=await p.pdf({preferCSSPageSize:true,printBackground:true});await p.emulateMedia({media:'screen'});await p.evaluate(()=>document.body.classList.remove('imprime'));return (pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length};
 ok('40 tickets = one A4 page',await pages(40)===1);
 ok('41 tickets = two pages',await pages(41)===2);
 // print rules in the stylesheet: A4 page, 4 columns, 25 mm rows

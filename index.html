@@ -116,15 +116,15 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 @page tickets{size:A4;margin:8mm}
 @media print{body.imprime>*:not(#planche){display:none!important}body.imprime{background:#fff;color:#000;padding:0}
 body.imprime #planche{page:tickets;display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;grid-auto-rows:25mm;color:#1b2733;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.tk{position:relative;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;text-align:left;border:.4mm solid #0a1f44;border-radius:2.5mm;background:#fff;outline:.3mm dashed #9aa5b0;outline-offset:.9mm;font-family:Inter,Arial,sans-serif}
-.tk-top{display:flex;align-items:center;gap:1.4mm;padding:.6mm 1.8mm;background:#0a1f44;color:#fff}
+.tk{position:relative;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;text-align:left;border:.4mm solid var(--c,#0a1f44);border-radius:2.5mm;background:#fff;outline:.3mm dashed #9aa5b0;outline-offset:.9mm;font-family:Inter,Arial,sans-serif}
+.tk-top{display:flex;align-items:center;gap:1.4mm;padding:.6mm 1.8mm;background:var(--c,#0a1f44);color:#fff}
 .tk-logo{width:4.6mm;height:4.6mm;border-radius:1mm;background:#fff;padding:.3mm;object-fit:contain}
 .tk-brand{flex:1;font-weight:800;font-size:9pt;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tk-price{background:#f6c453;color:#0a1f44;font-weight:800;font-size:7.4pt;padding:.3mm 1.6mm;border-radius:10mm;white-space:nowrap}
+.tk-price{background:#fff;color:var(--c,#0a1f44);font-weight:800;font-size:7.4pt;padding:.3mm 1.6mm;border-radius:10mm;white-space:nowrap}
 .tk-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:space-between;gap:1.2mm;padding:.4mm 1.6mm .5mm 1.8mm}
 .tk-left{flex:1;min-width:0}
-.tk-code{font:800 12pt ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;color:#0a1f44;margin:0 0 .5mm;padding:.3mm 1.2mm;width:fit-content;border:.3mm dashed #d85833;border-radius:1.4mm;background:#fff7f3}
-.tk-plan{font-size:7.4pt;color:#d85833;margin-bottom:.3mm;line-height:1.1}.tk-plan b{font-weight:800}
+.tk-code{font:800 12pt ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;color:#14171c;margin:0 0 .5mm;padding:.3mm 1.2mm;width:fit-content;border:.4mm dashed var(--c,#d85833);border-radius:1.4mm;background:color-mix(in srgb,var(--c,#d85833) 9%,#fff)}
+.tk-plan{font-size:7.4pt;color:var(--c,#d85833);margin-bottom:.3mm;line-height:1.1}.tk-plan b{font-weight:800}
 .tk-help{font-size:6.2pt;line-height:1.12;color:#3b4a58}
 .tk-qr{flex:none;width:15mm;height:15mm}
 .tk-test{font-size:6pt;font-weight:800;letter-spacing:.1em;color:#d85833}}
@@ -244,7 +244,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v30'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v31'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -442,8 +442,10 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   // The router stores codes as printed by the .rsc file; the QR carries the code in lowercase and the login page lowercases whatever is typed.
   const loginHost = () => String(db.loginHost ?? 'wifi.cispolstore').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   const loginUrl = code => `http://${loginHost()}/login?username=${encodeURIComponent(String(code).toLowerCase())}`;
-  const brandHtml = name => { const m = String(name).match(/^(.*?)(store)(.*)$/i); return m ? `${esc(m[1])}<span style="color:#f0a58a">${esc(m[2])}</span>${esc(m[3])}` : esc(name); };
-  const ticketHtml = (code, f, test) => `<div class="tk"><div class="tk-top"><img class="tk-logo" src="logo.svg" alt=""><span class="tk-brand">${brandHtml(db.name)}</span><span class="tk-price">${fmt(f.prix)}</span></div>
+  const brandHtml = name => { const m = String(name).match(/^(.*?)(store)(.*)$/i); return m ? `${esc(m[1])}<span style="color:#ffe2b8">${esc(m[2])}</span>${esc(m[3])}` : esc(name); };
+  // one colour per forfait on the printed ticket (fixed hex, not theme variables: paper is always white); same order as the app's badges
+  const TKCOL = ['#1f8a3b', '#1f6feb', '#d9600b', '#7b2cbf'], tkcol = f => TKCOL[f.id in FBYID ? FBYID[f.id] : Math.max(0, db.forfaits.indexOf(f)) % 4];
+  const ticketHtml = (code, f, test) => `<div class="tk" style="--c:${tkcol(f)}"><div class="tk-top"><img class="tk-logo" src="logo.svg" alt=""><span class="tk-brand">${brandHtml(db.name)}</span><span class="tk-price">${fmt(f.prix)}</span></div>
     <div class="tk-main"><div class="tk-left"><div class="tk-code">${esc(String(code).toUpperCase())}</div><div class="tk-plan"><b>${esc(f.nom)}</b> · ${esc(f.duree)}</div>
     <div class="tk-help">${test ? '<span class="tk-test">ESSAI · </span>' : ''}Activez <b>${esc(db.ssid)}</b>, puis ${loginHost() ? 'scannez le QR ou tapez' : 'tapez'} le code</div></div>${loginHost() ? qrSvg(loginUrl(code)) : ''}</div></div>`;
   const printTickets = async (items, test) => {
@@ -453,8 +455,8 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     document.body.classList.add('imprime'); window.print(); document.body.classList.remove('imprime');
   };
   const printLot = (f, lot) => printTickets(lotCodes(lot.id).map(t => ({ code: t.code, f })));
-  // test sheet: one row of four tickets with a dummy code, to scan against the real router before printing a whole lot
-  const printTest = () => printTickets(Array.from({ length: 4 }, () => ({ code: 'ESSAI1', f: db.forfaits[0] || { nom: 'Forfait', duree: '', prix: 0 } })), true);
+  // test sheet: one row of four tickets (one per forfait, so the colours show) with a dummy code, to scan against the real router before printing a whole lot
+  const printTest = () => printTickets(Array.from({ length: 4 }, (_, i) => ({ code: 'ESSAI1', f: db.forfaits[i % Math.max(1, db.forfaits.length)] || { id: '', nom: 'Forfait', duree: '', prix: 0 } })), true);
   const lowPaper = () => db.forfaits.filter(f => hasPaper(f.id) && paperOf(f.id).length < (db.seuil || 0));
   const lowStock = () => db.forfaits.filter(f => hasLots(f.id) && stockOf(f.id).length < (db.seuil || 0));
   // a code sold twice (two phones sold the same ticket while offline): the later sale gets another ticket
