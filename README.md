@@ -150,3 +150,7 @@ Réglages → Application → **📲 Installer l'application sur ce téléphone*
 ## Publier sur le Google Play Store
 
 Le dossier `play/` contient tout ce qu'il faut (guide pas à pas, textes de la fiche, captures avec données fictives, modèle `assetlinks.json`) : voir `play/README.md`. Côté application : manifeste « Android » (icône adaptative, 4 raccourcis `?go=sell|tix|day|rep`), page `privacy.html` liée dans Réglages, tests automatiques dans `tests/` (`cd tests && npm install && npx playwright install chromium && node run.js`, aussi sur GitHub à chaque push).
+
+## Tableau de bord animé
+
+L'écran **Accueil** est animé comme dans CISPOLstore Manager : étoiles reliées en réseau, lueurs néon, et une scène qui change au hasard (train de satellites, pluie de météores, comète, ondes Wi-Fi, orbites, vague de lumière), sur toute la page et dans la carte des ventes. Réglages → Apparence → **✨ Animation de l'accueil** : *Aucune*, *Calme*, *Équilibrée* (par défaut) ou *Intense* (rythme, quantité et fréquence des scènes). Le choix est propre à l'appareil. L'animation reste légère (une seule boucle à ~30 images/s, canvas sans clic) et s'arrête seule sur les autres écrans, quand l'application passe en arrière-plan, avec « réduire les animations » ou l'économiseur de données, et à l'impression.
