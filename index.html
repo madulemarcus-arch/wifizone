@@ -112,8 +112,22 @@ dialog::backdrop{background:rgba(6,12,28,.55);backdrop-filter:blur(3px)}dialog h
 code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 ::selection{background:color-mix(in srgb,var(--acc) 30%,transparent)}
 @media print{header,nav,.noprint{display:none!important}body{padding:0;background:#fff}}
-@media print{body.imprime>*:not(#planche){display:none!important}body.imprime{background:#fff;color:#000;padding:0}body.imprime #planche{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
-.tk{border:1px dashed #666;padding:10px 6px;text-align:center;font:11px/1.35 Arial,sans-serif;color:#000;page-break-inside:avoid}.tk b{display:block;font:700 20px/1.4 'Courier New',monospace;letter-spacing:2px;margin:4px 0}.tk small{display:block;color:#333}}
+/* ---------- Printed tickets: A4, 4 x 10 = 40 tickets per page, cut lines, QR code ---------- */
+@page tickets{size:A4;margin:8mm}
+@media print{body.imprime>*:not(#planche){display:none!important}body.imprime{background:#fff;color:#000;padding:0}
+body.imprime #planche{page:tickets;display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;grid-auto-rows:25mm;color:#1b2733;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.tk{position:relative;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;text-align:left;border:.4mm solid #0a1f44;border-radius:2.5mm;background:#fff;outline:.3mm dashed #9aa5b0;outline-offset:.9mm;font-family:Inter,Arial,sans-serif}
+.tk-top{display:flex;align-items:center;gap:1.4mm;padding:.6mm 1.8mm;background:#0a1f44;color:#fff}
+.tk-logo{width:4.6mm;height:4.6mm;border-radius:1mm;background:#fff;padding:.3mm;object-fit:contain}
+.tk-brand{flex:1;font-weight:800;font-size:9pt;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-price{background:#f6c453;color:#0a1f44;font-weight:800;font-size:7.4pt;padding:.3mm 1.6mm;border-radius:10mm;white-space:nowrap}
+.tk-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:space-between;gap:1.2mm;padding:.4mm 1.6mm .5mm 1.8mm}
+.tk-left{flex:1;min-width:0}
+.tk-code{font:800 12pt ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;color:#0a1f44;margin:0 0 .5mm;padding:.3mm 1.2mm;width:fit-content;border:.3mm dashed #d85833;border-radius:1.4mm;background:#fff7f3}
+.tk-plan{font-size:7.4pt;color:#d85833;margin-bottom:.3mm;line-height:1.1}.tk-plan b{font-weight:800}
+.tk-help{font-size:6.2pt;line-height:1.12;color:#3b4a58}
+.tk-qr{flex:none;width:15mm;height:15mm}
+.tk-test{font-size:6pt;font-weight:800;letter-spacing:.1em;color:#d85833}}
 
 /* ---------- Design v2 (étape 1) : police, accueil, graphiques ---------- */
 @font-face{font-family:Inter;font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/inter-latin.woff2) format("woff2")}
@@ -217,7 +231,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v28'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v29'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -230,7 +244,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   const MODES = ['Cash', 'M-Pesa', 'Airtel Money', 'Orange Money', 'Banque'], CATS = ['Abonnement Starlink', 'Électricité / carburant', 'Salaire', 'Matériel / réparation', 'Papier / impression', 'Autre'];
   const blank = () => ({ v: 1, name: 'WiFi Zone', rate: 2400, lastBackup: '', pin: null, lockMin: 2, forfaits: [
     { id: 'V', nom: 'Visiteur', duree: '6 heures', prix: 500 }, { id: 'J', nom: 'Jour', duree: '24 heures', prix: 1000 },
-    { id: 'S', nom: 'Semaine', duree: '7 jours', prix: 7000 }, { id: 'M', nom: 'Mois', duree: '30 jours', prix: 30000 }], sales: [], expenses: [], closings: [], tickets: [], lots: [], users: [], noProfiles: false, server: 'hotspot-cispol', seuil: 10 });
+    { id: 'S', nom: 'Semaine', duree: '7 jours', prix: 7000 }, { id: 'M', nom: 'Mois', duree: '30 jours', prix: 30000 }], sales: [], expenses: [], closings: [], tickets: [], lots: [], users: [], noProfiles: false, server: 'hotspot-cispol', seuil: 10, ssid: 'WiFi Zone', loginHost: 'wifi.cispolstore' });
   let db; try { db = { ...blank(), ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) { db = blank(); }
   // forfaits: stable order for sync, plus the ticket-code letter and the MikroTik profile (defaults follow the CISPOLstore router)
   const PROFILS = { V: 'Visiteur-6H', J: 'Jour-24H', S: 'Semaine-7J', M: 'Mois-30J' };
@@ -340,7 +354,94 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   };
   const lotCodes = lotId => db.tickets.filter(t => t.lot === lotId).sort((a, b) => a.ts - b.ts);
   const rscOf = (f, lot) => ['# Lot ' + lot.id + ' - ' + f.nom + ' - ' + lotCodes(lot.id).length + ' tickets', ...lotCodes(lot.id).map(t => `/ip hotspot user add name=${t.code} password=${t.code} profile=${f.profil} server=${db.server}`)].join('\n') + '\n';
-  const printLot = (f, lot) => { $('planche').innerHTML = lotCodes(lot.id).map(t => `<div class="tk">${esc(db.name)}<b>${esc(t.code)}</b>${esc(f.nom)} · ${esc(f.duree)} · ${fmt(f.prix)}<small>Connectez-vous au WiFi puis saisissez ce code</small></div>`).join(''); document.body.classList.add('imprime'); window.print(); document.body.classList.remove('imprime'); };
+  // ---------- QR code ----------
+  // Minimal QR encoder (byte mode, error correction L, versions 1-6, enough for a login link): returns a boolean matrix.
+  function qrMatrix(text) {
+    const data = [...new TextEncoder().encode(text)];
+    const ECC = [7, 10, 15, 20, 26, 18], BLK = [1, 1, 1, 1, 1, 2];
+    const rawModules = v => { let r = (16 * v + 128) * v + 64; if (v >= 2) { const a = Math.floor(v / 7) + 2; r -= (25 * a - 10) * a - 55; } return r; };
+    let ver = 1;
+    for (; ver <= 6; ver++) if (data.length * 8 + 12 <= ((rawModules(ver) >> 3) - ECC[ver - 1] * BLK[ver - 1]) * 8) break;
+    if (ver > 6) return null;
+    const rawCw = rawModules(ver) >> 3, nb = BLK[ver - 1], eccLen = ECC[ver - 1], dataCw = rawCw - eccLen * nb;
+    // data bits: mode 0100, 8-bit length, bytes, terminator, padding
+    const bits = [], put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
+    put(4, 4); put(data.length, 8); data.forEach(b => put(b, 8));
+    put(0, Math.min(4, dataCw * 8 - bits.length));
+    while (bits.length % 8) bits.push(0);
+    for (let pad = 0xEC; bits.length < dataCw * 8; pad ^= 0xEC ^ 0x11) put(pad, 8);
+    const cw = []; for (let i = 0; i < bits.length; i += 8) cw.push(parseInt(bits.slice(i, i + 8).join(''), 2));
+    // Reed-Solomon over GF(256)
+    const mul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z; };
+    const div = new Array(eccLen).fill(0); div[eccLen - 1] = 1;
+    for (let i = 0, root = 1; i < eccLen; i++, root = mul(root, 2)) for (let j = 0; j < eccLen; j++) { div[j] = mul(div[j], root); if (j + 1 < eccLen) div[j] ^= div[j + 1]; }
+    const rem = d => { const r = new Array(eccLen).fill(0); for (const b of d) { const f = b ^ r.shift(); r.push(0); div.forEach((c, i) => { r[i] ^= mul(c, f); }); } return r; };
+    const numShort = nb - rawCw % nb, shortLen = Math.floor(rawCw / nb), blocks = [];
+    for (let i = 0, k = 0; i < nb; i++) { const len = shortLen - eccLen + (i < numShort ? 0 : 1), d = cw.slice(k, k + len); k += len; const e = rem(d); if (i < numShort) d.push(0); blocks.push(d.concat(e)); }
+    const all = [];
+    for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b, j) => { if (i !== shortLen - eccLen || j >= numShort) all.push(b[i]); });
+    // function patterns
+    const size = ver * 4 + 17, m = Array.from({ length: size }, () => new Array(size).fill(false)), fn = Array.from({ length: size }, () => new Array(size).fill(false));
+    const set = (x, y, d) => { m[y][x] = d; fn[y][x] = true; };
+    for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+    const finder = (cx, cy) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const d = Math.max(Math.abs(dx), Math.abs(dy)), x = cx + dx, y = cy + dy; if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4); } };
+    finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+    if (ver > 1) { const last = ver * 4 + 10; for (const [a, b] of [[last, last]]) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(a + dx, b + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1); }
+    const fmt = mask => {
+      const d = (1 << 3) | mask; let r = d; for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+      const f = ((d << 10) | r) ^ 0x5412, g = i => ((f >>> i) & 1) !== 0;
+      for (let i = 0; i <= 5; i++) set(8, i, g(i)); set(8, 7, g(6)); set(8, 8, g(7)); set(7, 8, g(8)); for (let i = 9; i < 15; i++) set(14 - i, 8, g(i));
+      for (let i = 0; i < 8; i++) set(size - 1 - i, 8, g(i)); for (let i = 8; i < 15; i++) set(8, size - 15 + i, g(i)); set(8, size - 8, true);
+    };
+    fmt(0);
+    // codewords, zig-zag
+    for (let right = size - 1, k = 0; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+        const x = right - j, y = ((right + 1) & 2) === 0 ? size - 1 - vert : vert;
+        if (!fn[y][x] && k < all.length * 8) { m[y][x] = ((all[k >>> 3] >>> (7 - (k & 7))) & 1) !== 0; k++; }
+      }
+    }
+    // mask choice: lowest penalty (long runs, 2x2 blocks, dark/light balance)
+    const MASK = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x, y) => x % 3 === 0, (x, y) => (x + y) % 3 === 0, (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0,
+      (x, y) => x * y % 2 + x * y % 3 === 0, (x, y) => (x * y % 2 + x * y % 3) % 2 === 0, (x, y) => ((x + y) % 2 + x * y % 3) % 2 === 0];
+    const apply = mask => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fn[y][x] && MASK[mask](x, y)) m[y][x] = !m[y][x]; };
+    const penalty = () => {
+      let p = 0, dark = 0;
+      for (let t = 0; t < 2; t++) for (let a = 0; a < size; a++) { let run = 1; for (let b = 1; b < size; b++) { const cur = t ? m[b][a] : m[a][b], prev = t ? m[b - 1][a] : m[a][b - 1]; if (cur === prev) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1; } }
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { if (m[y][x]) dark++; if (x && y && m[y][x] === m[y][x - 1] && m[y][x] === m[y - 1][x] && m[y][x] === m[y - 1][x - 1]) p += 3; }
+      return p + Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10;
+    };
+    let best = 0, bestP = Infinity;
+    for (let mask = 0; mask < 8; mask++) { apply(mask); fmt(mask); const p = penalty(); if (p < bestP) { best = mask; bestP = p; } apply(mask); }
+    apply(best); fmt(best);
+    return m;
+  }
+  // QR as inline SVG (dark modules as one path, 3-module quiet zone)
+  function qrSvg(text) {
+    const m = qrMatrix(text); if (!m) return '';
+    const n = m.length, q = 3;
+    let d = ''; m.forEach((row, y) => row.forEach((on, x) => { if (on) d += `M${x + q} ${y + q}h1v1h-1z`; }));
+    return `<svg class="tk-qr" viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" shape-rendering="crispEdges" role="img" aria-label="QR code de connexion"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+  }
+
+  // ---------- Printed tickets (A4, 40 per page, QR code opens the router login page with the code filled in) ----------
+  // The router stores codes as printed by the .rsc file; the QR carries the code in lowercase and the login page lowercases whatever is typed.
+  const loginHost = () => String(db.loginHost ?? 'wifi.cispolstore').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const loginUrl = code => `http://${loginHost()}/login?username=${encodeURIComponent(String(code).toLowerCase())}`;
+  const brandHtml = name => { const m = String(name).match(/^(.*?)(store)(.*)$/i); return m ? `${esc(m[1])}<span style="color:#f0a58a">${esc(m[2])}</span>${esc(m[3])}` : esc(name); };
+  const ticketHtml = (code, f, test) => `<div class="tk"><div class="tk-top"><img class="tk-logo" src="logo.svg" alt=""><span class="tk-brand">${brandHtml(db.name)}</span><span class="tk-price">${fmt(f.prix)}</span></div>
+    <div class="tk-main"><div class="tk-left"><div class="tk-code">${esc(String(code).toUpperCase())}</div><div class="tk-plan"><b>${esc(f.nom)}</b> · ${esc(f.duree)}</div>
+    <div class="tk-help">${test ? '<span class="tk-test">ESSAI · </span>' : ''}Activez <b>${esc(db.ssid)}</b>, puis ${loginHost() ? 'scannez le QR ou tapez' : 'tapez'} le code</div></div>${loginHost() ? qrSvg(loginUrl(code)) : ''}</div></div>`;
+  const printTickets = async (items, test) => {
+    $('planche').innerHTML = items.map(x => ticketHtml(x.code, x.f, test)).join('');
+    const late = [...$('planche').querySelectorAll('img')].filter(i => !i.complete);
+    if (late.length) await Promise.all(late.map(i => i.decode ? i.decode().catch(() => {}) : null));
+    document.body.classList.add('imprime'); window.print(); document.body.classList.remove('imprime');
+  };
+  const printLot = (f, lot) => printTickets(lotCodes(lot.id).map(t => ({ code: t.code, f })));
+  // test sheet: one row of four tickets with a dummy code, to scan against the real router before printing a whole lot
+  const printTest = () => printTickets(Array.from({ length: 4 }, () => ({ code: 'ESSAI1', f: db.forfaits[0] || { nom: 'Forfait', duree: '', prix: 0 } })), true);
   const lowPaper = () => db.forfaits.filter(f => hasPaper(f.id) && paperOf(f.id).length < (db.seuil || 0));
   const lowStock = () => db.forfaits.filter(f => hasLots(f.id) && stockOf(f.id).length < (db.seuil || 0));
   // a code sold twice (two phones sold the same ticket while offline): the later sale gets another ticket
@@ -469,6 +570,9 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     <div class="card"><label>Nom de l'activité</label><input id="s_name" value="${esc(db.name)}">
       <label>Taux du jour (1 $ = … FC)</label><input id="s_rate" type="number" inputmode="numeric" min="1" value="${db.rate}">
       <label>Nom du serveur hotspot (routeur)</label><input id="s_server" value="${esc(db.server)}" autocapitalize="none">
+      <label>Nom du Wi-Fi (imprimé sur les tickets)</label><input id="s_ssid" value="${esc(db.ssid)}">
+      <label>Adresse de la page de connexion (QR code)</label><input id="s_host" value="${esc(db.loginHost)}" placeholder="wifi.cispolstore (vide = pas de QR)" autocapitalize="none" autocomplete="off" inputmode="url">
+      <p class="mut" style="margin:4px 0 8px">Le QR ouvre <code>http://${esc(loginHost() || '…')}/login?username=<i>code</i></code>. Laissez vide pour imprimer sans QR. <button class="btn sm sec" data-a="tktest" style="margin-left:6px">🖨️ Page d'essai</button></p>
       <label>Alerte quand il reste moins de … tickets d'un forfait</label><input id="s_seuil" type="number" inputmode="numeric" min="0" value="${db.seuil}">
       <button class="btn full" data-a="saveset">Enregistrer</button></div>
     <h2>Forfaits et prix</h2><div class="card">${db.forfaits.map(f => `<div class="row"><div class="g"><b>${esc(f.nom)}</b><small>${esc(f.duree)}</small></div><b>${fmt(f.prix)}</b><button class="btn sm sec" data-a="editf" data-v="${esc(f.id)}">✎</button></div>`).join('')}<button class="btn sec full" data-a="newf">+ Ajouter un forfait</button></div>
@@ -504,7 +608,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   // The whole data set is encrypted on the phone (AES-GCM, key derived from a passphrase) and stored as one opaque row
   // in the user's own Supabase project (same table and functions as CISPOLstore Manager, other workspace name).
   // Devices merge record by record against the last synced snapshot (three-way merge), so offline edits on several phones are combined.
-  const CKEY = 'wifizone-sync', COLL = ['sales', 'expenses', 'closings', 'forfaits', 'tickets', 'lots', 'users'], SHARED = ['name', 'rate', 'server', 'seuil', 'noProfiles'], js = JSON.stringify;
+  const CKEY = 'wifizone-sync', COLL = ['sales', 'expenses', 'closings', 'forfaits', 'tickets', 'lots', 'users'], SHARED = ['name', 'rate', 'server', 'seuil', 'noProfiles', 'ssid', 'loginHost'], js = JSON.stringify;
   let cfg = null; try { cfg = JSON.parse(localStorage.getItem(CKEY)); } catch (e) {}
   const saveCfg = () => { try { localStorage.setItem(CKEY, js(cfg)); } catch (e) {} };
   const SY = { status: cfg ? 'idle' : 'off', error: '', summary: '' };
@@ -810,7 +914,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     csv: () => { const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`, x = monthData(st.rm), rows = [['Date', 'Heure', 'Type', 'Libellé', 'Code', 'Mode', 'Devise', 'Montant', 'Équivalent FC'],
       ...x.S.map(s => [s.date, hhmm(s.ts), 'Vente', `${s.qty} × ${fname(s.fid)}`, s.ref || '', s.mode, 'CDF', s.amount, s.amount]), ...x.E.map(e => [e.date, hhmm(e.ts || 0), 'Dépense', e.label || e.cat, '', e.mode, e.cur, -e.amount, -expCDF(e)])].sort((a, b) => a[0].localeCompare(b[0]));
       download(`wifizone-${st.rm}.csv`, '﻿' + rows.map(r => r.map(q).join(';')).join('\n'), 'text/csv'); },
-    saveset: () => { const r = Math.round(+$('s_rate').value); if (!(r > 0)) return toast('Taux invalide'); db.name = $('s_name').value.trim() || 'WiFi Zone'; db.rate = r; db.server = $('s_server').value.trim() || 'hotspot-cispol'; db.seuil = Math.max(0, parseInt($('s_seuil').value, 10) || 0); save(); draw(); toast('Réglages enregistrés'); },
+    saveset: () => { const r = Math.round(+$('s_rate').value); if (!(r > 0)) return toast('Taux invalide'); db.name = $('s_name').value.trim() || 'WiFi Zone'; db.rate = r; db.server = $('s_server').value.trim() || 'hotspot-cispol'; db.ssid = $('s_ssid').value.trim() || 'WiFi Zone'; db.loginHost = $('s_host').value.trim(); db.seuil = Math.max(0, parseInt($('s_seuil').value, 10) || 0); save(); draw(); toast('Réglages enregistrés'); },
     newf: () => forfaitForm(null), editf: v => forfaitForm(db.forfaits.find(f => f.id === v)),
     backup: () => { db.lastBackup = Date.now(); save(); download(`wifizone-sauvegarde-${today()}.json`, JSON.stringify({ ...db, pin: null }), 'application/json'); draw(); toast('Sauvegarde téléchargée'); },
     impcsv: () => $('ifile').click(),
@@ -826,6 +930,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       if (db.tickets.some(t => t.lot === l.id && t.status === 'sold')) { draw(); return toast('Des tickets de ce lot sont déjà vendus : on ne peut plus le repasser « à importer »'); }
       l.imported = false; delete l.importedAt; save(); draw(); },
     lotrsc: v => { const l = db.lots.find(x => x.id === v), f = l && db.forfaits.find(x => x.id === l.fid); if (f) download(`tickets-${f.nom}-${l.id}.rsc`, rscOf(f, l), 'text/plain;charset=utf-8'); },
+    tktest: () => { db.ssid = $('s_ssid').value.trim() || 'WiFi Zone'; db.loginHost = $('s_host').value.trim(); save(); printTest(); },
     lotprint: v => { const l = db.lots.find(x => x.id === v), f = l && db.forfaits.find(x => x.id === l.fid); if (!f) return; if (l.dest !== 'paper') return toast('Les tickets de l\'application ne s\'impriment pas : générez un lot « papier »'); printLot(f, l); },
     // delete a lot nothing was sold from; if it was imported into the router, a cleanup .rsc removes its codes there too
     lotdel: v => { const l = db.lots.find(x => x.id === v); if (!l) return; const f = db.forfaits.find(x => x.id === l.fid) || { nom: 'forfait' }, tk = lotCodes(l.id);
