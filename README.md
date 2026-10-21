@@ -14,7 +14,7 @@ Adresse : `https://madulemarcus-arch.github.io/wifizone/` (dépôt `madulemarcus
 | 🎫 Vendre | Choisir le forfait, la quantité et le mode (Cash, M-Pesa, Airtel Money…), enregistrer ; liste des ventes du jour (✕ pour corriger) |
 | 💸 Dépenses | Abonnement Starlink, électricité, salaire… en FC ou en $ (le taux du jour est figé dans chaque dépense) |
 | 🤝 Emprunts | Noter quand quelqu'un emprunte (argent, ticket / forfait, matériel…) : nom, détail, montant, date, note. **Les vendeurs peuvent noter un emprunt et le marquer « Rendu »** ; seul un gérant peut le supprimer. Rappel sur l'accueil tant qu'il reste des emprunts non rendus ; synchronisé entre les appareils |
-| 🌙 Clôture | Cash attendu en caisse, cash compté, écart, note ; envoi WhatsApp, copie, impression |
+| 🌙 Clôture | Cash attendu en caisse (**l'argent pris à la caisse par emprunt est déduit, et l'argent rendu ajouté, avec le « total prévu » entre parenthèses**), cash compté, écart, note ; envoi WhatsApp, copie, impression |
 | 📊 Rapport | Mois par mois : par forfait, par catégorie de dépense, jour par jour ; WhatsApp, CSV, impression |
 | ⚙️ Réglages | Nom, taux 1 $ = … FC, forfaits et prix (ajout, modification, suppression), **import des ventes de la caisse**, **synchronisation**, **code PIN**, sauvegarde / restauration |
 
