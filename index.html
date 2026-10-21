@@ -249,7 +249,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v34'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v35'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -569,14 +569,21 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     const r = [m + '-01', m + '-31'], S = db.sales.filter(s => inR(s.date, r)), E = db.expenses.filter(e => inR(e.date, r));
     const byF = {}, byC = {}, byD = {}; S.forEach(s => { const o = byF[s.fid] = byF[s.fid] || { q: 0, a: 0 }; o.q += s.qty; o.a += s.amount; (byD[s.date] = byD[s.date] || { i: 0, o: 0 }).i += s.amount; });
     E.forEach(e => { byC[e.cat] = (byC[e.cat] || 0) + expCDF(e); (byD[e.date] = byD[e.date] || { i: 0, o: 0 }).o += expCDF(e); });
-    return { m, S, E, inc: sum(S, saleCDF), out: sum(E, expCDF), tickets: sum(S, s => s.qty), byF, byC, byD };
+    // money borrowed from the till in the month, and money given back in it (a loan can be borrowed and returned in different months)
+    const LN = db.loans.filter(l => l.kind === 'argent' && l.amount > 0), L1 = LN.filter(l => inR(l.date, r)), L2 = LN.filter(l => l.status === 'back' && inR(l.backDate, r));
+    const lent = sum(L1, l => toCDF(l.amount, l.cur, l.rate)), back = sum(L2, l => toCDF(l.amount, l.cur, l.rate)), inc = sum(S, saleCDF), out = sum(E, expCDF);
+    return { m, S, E, inc, out, tickets: sum(S, s => s.qty), byF, byC, byD, L1, L2, lent, back, left: inc - out - lent + back };
   };
+  // « 77 000 FC − 25 000 FC emprunté + 5 000 FC rendu = 57 000 FC »: the sales figure with its loan calculation
+  const loanCalc = (x, base, label) => x.L1.length || x.L2.length ? `${fmt(base)} − ${fmt(x.lent)} emprunté${x.L2.length ? ' + ' + fmt(x.back) + ' rendu' : ''} = ${fmt(base - x.lent + x.back)}${label ? ' ' + label : ''}` : '';
   const monthName = m => new Date(m + '-15T12:00:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   const monthText = x => {
     const L = [`📑 ${db.name} — Rapport de ${monthName(x.m)}`, '', `🎫 ${x.tickets} ticket(s) : ${fmt(x.inc)}`];
     Object.entries(x.byF).forEach(([id, o]) => L.push(`   • ${fname(id)} : ${o.q} (${fmt(o.a)})`));
     L.push(`💸 Dépenses : ${fmt(x.out)}`); Object.entries(x.byC).forEach(([c, a]) => L.push(`   • ${c} : ${fmt(a)}`));
-    L.push(`✅ Bénéfice : ${fmt(x.inc - x.out)} (≈ ${fmt(usdOf(x.inc - x.out), 'USD')})`); return L.join('\n');
+    L.push(`✅ Bénéfice : ${fmt(x.inc - x.out)} (≈ ${fmt(usdOf(x.inc - x.out), 'USD')})`);
+    if (x.L1.length || x.L2.length) L.push('', `🤝 Argent pris à la caisse : ${fmt(x.lent)} (${x.L1.map(l => l.who).join(', ') || '—'})`, ...(x.L2.length ? [`↩️ Argent rendu : ${fmt(x.back)}`] : []), `📊 Calcul : ${loanCalc(x, x.inc, 'restant sur les ventes')}`, `💰 Argent qui reste (ventes − dépenses − emprunts + rendus) : ${fmt(x.left)}`);
+    return L.join('\n');
   };
   // ---------- Detailed sales list (with ticket codes) ----------
   const hhmm = ts => new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -621,9 +628,13 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     const x = monthData(st.rm), days = Object.entries(x.byD).sort((a, b) => b[0].localeCompare(a[0])), pm = iso(new Date(+st.rm.slice(0, 4), +st.rm.slice(5, 7) - 2, 1)).slice(0, 7), pInc = monthData(pm).inc, pd = pInc > 0 ? (x.inc - pInc) / pInc * 100 : null;
     return { title: 'Rapport du mois', sub: monthName(st.rm), html: `
       <section class="hero"><div class="hero-row"><div><small>📊 Ventes du mois</small><div class="hero-greet" style="margin:1px 0 4px;text-transform:capitalize">${esc(monthName(st.rm))}</div></div>${pd === null ? '' : `<span class="delta ${pd >= 0 ? 'up' : 'down'}">${pd >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(pd))} % vs mois précédent</span>`}</div>
-        <div class="hero-num" data-count="${x.inc}">${fmt(x.inc)}</div><small>${x.tickets} ticket(s)</small>
+        <div class="hero-num" data-count="${x.inc}">${fmt(x.inc)}</div><small>${x.tickets} ticket(s)</small>${x.L1.length || x.L2.length ? `<div class="loancalc" style="margin-top:4px;font-weight:700">🤝 ${loanCalc(x, x.inc, 'restant')}</div>` : ''}
         <div class="hstats"><div class="bad"><b>${fmt(x.out)}</b><small>dépenses</small></div><div class="${x.inc - x.out >= 0 ? 'ok' : 'bad'}"><b>${fmt(x.inc - x.out)}</b><small>bénéfice net · ≈ ${fmt(usdOf(x.inc - x.out), 'USD')}</small></div></div>
         <div class="chips noprint"><button class="chip" data-a="mnav" data-v="-1">‹ Précédent</button><button class="chip" data-a="mnav" data-v="1" ${st.rm >= today().slice(0, 7) ? 'disabled' : ''}>Suivant ›</button></div></section>
+      ${x.L1.length || x.L2.length ? `<h2>🤝 Argent pris à la caisse</h2><div class="card calc"><div class="row"><div class="g">Ventes du mois</div><b>${fmt(x.inc)}</b></div><div class="row"><div class="g">− Dépenses</div><b class="bad">${fmt(x.out)}</b></div>
+        <div class="row"><div class="g">− Argent emprunté<small>${x.L1.length} emprunt(s) : ${esc(x.L1.map(l => l.who).join(', '))}</small></div><b class="bad">${fmt(x.lent)}</b></div>
+        ${x.L2.length ? `<div class="row"><div class="g">+ Argent rendu<small>${esc(x.L2.map(l => l.who).join(', '))}</small></div><b class="ok">${fmt(x.back)}</b></div>` : ''}
+        <div class="row"><div class="g"><b>= Argent qui reste</b></div><b class="${x.left >= 0 ? 'ok' : 'bad'}">${fmt(x.left)}</b></div></div>` : ''}
       ${Object.keys(x.byF).length ? '<h2>Répartition des ventes</h2>' + donut(Object.entries(x.byF).map(([id, o]) => ({ l: fname(id), v: o.a, c: fcol(db.forfaits.find(f => f.id === id) || { id }) })), 'Ventes') : ''}
       ${days.length > 1 ? '<h2>Ventes par jour</h2>' + barsChart(days.slice().reverse().map(([d, o]) => ({ l: d.slice(8), t: fdate(d), v: o.i })), monthName(st.rm)) : ''}
       <h2>Par forfait</h2><div class="card">${Object.keys(x.byF).length ? Object.entries(x.byF).map(([id, o]) => `<div class="row"><div class="g"><b>${esc(fname(id))}</b><small>${o.q} ticket(s)</small></div><b>${fmt(o.a)}</b></div>`).join('') : '<div class="empty">—</div>'}</div>

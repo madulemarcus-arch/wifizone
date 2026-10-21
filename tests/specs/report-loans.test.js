@@ -1,0 +1,22 @@
+const BASE = process.env.BASE_URL || 'http://localhost:8775';
+const { chromium, devices } = require('playwright');let f=0;const ok=(n,c,x='')=>{console.log((c?'PASS ':'FAIL ')+n+(x?' '+x:''));if(!c)f++};
+// Fictitious data only: the repository is public.
+(async()=>{const b=await chromium.launch({executablePath: process.env.CHROMIUM_PATH || undefined});const ctx=await b.newContext({...devices['Pixel 5']});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.accept());
+await p.goto(BASE + '/index.html');await p.waitForTimeout(500);
+const seed=loans=>p.evaluate(l=>{const k='wifizone-v1',db=JSON.parse(localStorage.getItem(k)||'{}'),t=new Date().toISOString().slice(0,10);db.noProfiles=true;
+ db.sales=[{id:'s1',ts:Date.now(),date:t,fid:'M',qty:1,amount:77000,mode:'Cash',ref:'',codes:[],by:''}];
+ db.expenses=[{id:'e1',ts:Date.now(),date:t,label:'Carburant',cat:'Autre',amount:10000,cur:'CDF',rate:2400,mode:'Cash'}];
+ db.loans=l.map((x,i)=>({id:'l'+i,ts:Date.now()+i,date:t,who:x.who,kind:'argent',label:'',amount:x.amount,cur:x.cur||'CDF',rate:2400,by:'',status:x.back?'back':'open',backDate:x.back?t:undefined}));
+ localStorage.setItem(k,JSON.stringify(db));location.reload()},loans);
+const rep=async()=>{await p.waitForTimeout(900);await p.click('nav button[data-v=rep]');await p.waitForTimeout(1800);return (await p.innerText('#view')).replace(/\s+/g,' ')};
+await seed([]);let v=await rep();
+ok('no loan: no calculation line',!/emprunté/.test(v)&&!/Argent pris à la caisse/.test(v));
+await seed([{who:'Jean Exemple',amount:25000}]);v=await rep();
+ok('hero shows 77 000 FC − 25 000 FC emprunté = 52 000 FC restant',/77\s?000 FC − 25\s?000 FC emprunté = 52\s?000 FC restant/.test(v),v.slice(0,300));
+ok('detail card: sales, expenses, borrowed, what remains (77 000 − 10 000 − 25 000 = 42 000)',/Argent qui reste\s?42\s?000 FC/.test(v.replace('= ',''))&&/− Dépenses 10\s?000 FC/.test(v)&&/Jean Exemple/.test(v),v.slice(0,700));
+await seed([{who:'Jean Exemple',amount:25000},{who:'Awa Test',amount:5000,back:true}]);v=await rep();
+ok('with money given back: + 5 000 FC rendu in the calculation',/77\s?000 FC − 30\s?000 FC emprunté \+ 5\s?000 FC rendu = 52\s?000 FC/.test(v),v.slice(0,300));
+await p.evaluate(()=>{window.__u=null;window.open=u=>{window.__u=u}});await p.click('[data-a=mwa]');
+const wa=decodeURIComponent(await p.evaluate(()=>window.__u));
+ok('WhatsApp report carries the calculation and what remains',/Calcul : 77\s?000 FC − 30\s?000 FC emprunté/.test(wa)&&/Argent qui reste[^:]*: 42\s?000 FC/.test(wa),wa.slice(0,500));
+ok('no page errors',errs.length===0,errs.join('|'));await b.close();process.exit(f?1:0)})();
