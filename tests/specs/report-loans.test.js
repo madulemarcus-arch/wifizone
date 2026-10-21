@@ -10,11 +10,12 @@ const seed=loans=>p.evaluate(l=>{const k='wifizone-v1',db=JSON.parse(localStorag
  localStorage.setItem(k,JSON.stringify(db));location.reload()},loans);
 const rep=async()=>{await p.waitForTimeout(900);await p.click('nav button[data-v=rep]');await p.waitForTimeout(1800);return (await p.innerText('#view')).replace(/\s+/g,' ')};
 await seed([]);let v=await rep();
-ok('no loan: no calculation line',!/emprunté/.test(v)&&!/Argent pris à la caisse/.test(v));
+ok('no loan: no calculation line, the big figure is the sales (77 000 FC)',!/emprunté/.test(v)&&!/Argent pris à la caisse/.test(v)&&await p.evaluate(()=>/^77\s?000 FC$/.test(document.querySelector('.hero-num').innerText.trim())));
 await seed([{who:'Jean Exemple',amount:25000}]);v=await rep();
 ok('hero shows 77 000 FC − 25 000 FC emprunté = 52 000 FC restant',/77\s?000 FC − 25\s?000 FC emprunté = 52\s?000 FC restant/.test(v),v.slice(0,300));
-ok('detail card: sales, expenses, borrowed, what remains (77 000 − 10 000 − 25 000 = 42 000)',/Argent qui reste à garder disponible à la caisse 42\s?000 FC/.test(v)&&/− Dépenses 10\s?000 FC/.test(v)&&/Jean Exemple/.test(v),v.slice(0,700));
-ok('what remains is highlighted (bigger, bold) in the header line and in the card',await p.evaluate(()=>{const k=[...document.querySelectorAll('#view .keep')];return k.length>=2&&k.every(e=>+getComputedStyle(e).fontWeight>=700&&parseFloat(getComputedStyle(e).fontSize)>parseFloat(getComputedStyle(document.body).fontSize))&&/52\s?000 FC/.test(k[0].innerText)}));
+ok('detail card: sales, expenses, borrowed, what remains (77 000 − 10 000 − 25 000 = 42 000)',/Reste après les dépenses ventes − dépenses − emprunts \+ rendus 42\s?000 FC/.test(v)&&/− Dépenses 10\s?000 FC/.test(v)&&/Jean Exemple/.test(v),v.slice(0,700));
+ok('the big figure on top is what remains in the till (52 000 FC), the sales and the calculation stay below it',await p.evaluate(()=>{const h=document.querySelector('.hero-num'),c=document.querySelector('.loancalc');return /^52\s?000 FC$/.test(h.innerText.trim())&&/Reste dans la caisse/.test(document.querySelector('.hero').innerText)&&/77\s?000 FC − 25\s?000 FC emprunté = 52\s?000 FC restant/.test(c.innerText)&&h.compareDocumentPosition(c)&Node.DOCUMENT_POSITION_FOLLOWING}));
+ok('the card line is highlighted (bigger, bold)',await p.evaluate(()=>{const k=document.querySelector('#view .card .keep');return !!k&&+getComputedStyle(k).fontWeight>=700&&parseFloat(getComputedStyle(k).fontSize)>parseFloat(getComputedStyle(document.body).fontSize)}));
 await seed([{who:'Jean Exemple',amount:25000},{who:'Awa Test',amount:5000,back:true}]);v=await rep();
 ok('with money given back: + 5 000 FC rendu in the calculation',/77\s?000 FC − 30\s?000 FC emprunté \+ 5\s?000 FC rendu = 52\s?000 FC/.test(v),v.slice(0,300));
 await p.evaluate(()=>{window.__u=null;window.open=u=>{window.__u=u}});await p.click('[data-a=mwa]');
