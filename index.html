@@ -249,7 +249,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v32'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v33'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -262,7 +262,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   const MODES = ['Cash', 'M-Pesa', 'Airtel Money', 'Orange Money', 'Banque'], CATS = ['Abonnement Starlink', 'Électricité / carburant', 'Salaire', 'Matériel / réparation', 'Papier / impression', 'Autre'];
   const blank = () => ({ v: 1, name: 'WiFi Zone', rate: 2400, lastBackup: '', pin: null, lockMin: 2, forfaits: [
     { id: 'V', nom: 'Visiteur', duree: '6 heures', prix: 500 }, { id: 'J', nom: 'Jour', duree: '24 heures', prix: 1000 },
-    { id: 'S', nom: 'Semaine', duree: '7 jours', prix: 7000 }, { id: 'M', nom: 'Mois', duree: '30 jours', prix: 30000 }], sales: [], expenses: [], closings: [], tickets: [], lots: [], users: [], noProfiles: false, server: 'hotspot-cispol', seuil: 10, ssid: 'WiFi Zone', loginHost: 'wifi.cispolstore' });
+    { id: 'S', nom: 'Semaine', duree: '7 jours', prix: 7000 }, { id: 'M', nom: 'Mois', duree: '30 jours', prix: 30000 }], sales: [], expenses: [], loans: [], closings: [], tickets: [], lots: [], users: [], noProfiles: false, server: 'hotspot-cispol', seuil: 10, ssid: 'WiFi Zone', loginHost: 'wifi.cispolstore' });
   let db; try { db = { ...blank(), ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) { db = blank(); }
   // forfaits: stable order for sync, plus the ticket-code letter and the MikroTik profile (defaults follow the CISPOLstore router)
   const PROFILS = { V: 'Visiteur-6H', J: 'Jour-24H', S: 'Semaine-7J', M: 'Mois-30J' };
@@ -277,7 +277,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   const usdOf = cdf => cdf / db.rate;
   const both = cdf => `${fmt(cdf)} <small>≈ ${fmt(usdOf(cdf), 'USD')}</small>`;
 
-  const st = { tab: 'home', src: 'app', sper: 'day', sq: '', tfid: 'J', tn: 50, per: 'day', vper: 'month', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7) };
+  const st = { tab: 'home', src: 'app', sper: 'day', sq: '', tfid: 'J', tn: 50, per: 'day', vper: 'month', lf: 'open', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7) };
   const range = per => { const t = today(); if (per === 'day') return [t, t]; if (per === 'week') return [addDays(t, -6), t]; return [t.slice(0, 7) + '-01', t]; };
   const inR = (d, r) => d >= r[0] && d <= r[1];
   const saleCDF = s => s.amount, expCDF = e => toCDF(e.amount, e.cur, e.rate);
@@ -318,7 +318,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   const views = {};
   views.home = () => {
     if (!isMgr()) { const mine = db.sales.filter(x => x.date === today() && x.by === (me && me.name));
-      return { title: db.name, sub: 'Bonjour ' + (me ? me.name : ''), html: `<button class="btn full" data-a="tab" data-v="sell" style="margin:0 0 12px">🎫 Vendre un ticket</button>
+      return { title: db.name, sub: 'Bonjour ' + (me ? me.name : ''), html: `<button class="btn full" data-a="tab" data-v="sell" style="margin:0 0 12px">🎫 Vendre un ticket</button>${loanBanner()}
         <div class="grid"><div class="stat"><small>Mes ventes aujourd'hui</small><b class="ok">${fmt(sum(mine, saleCDF))}</b><small>${sum(mine, x => x.qty)} ticket(s)</small></div><div class="stat"><small>Tickets en stock</small><b>${db.tickets.filter(t => t.status === 'stock' && lotImported(t.lot)).length}</b></div></div>
         ${lowStock().length ? `<div class="card warn">🎟 Stock bas : ${lowStock().map(f => `${esc(f.nom)} (${stockOf(f.id).length})`).join(', ')}. Prévenez le gérant.</div>` : ''}` }; }
     const r = range(st.per), S = db.sales.filter(s => inR(s.date, r)), E = db.expenses.filter(e => inR(e.date, r));
@@ -333,7 +333,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     return { title: db.name, sub: fdate(r[0]) + (r[0] !== r[1] ? ' → ' + fdate(r[1]) : ''), html: `
       ${stale && (db.sales.length || db.expenses.length) ? `<div class="card warn" data-a="goset" style="cursor:pointer">⚠ Pas de sauvegarde récente. Touchez ici pour sauvegarder vos données.</div>` : ''}
       <button class="btn full" data-a="tab" data-v="tix" style="margin:0 0 12px">🎟 Générer des tickets <small style="font-weight:400">(stock : ${db.tickets.filter(t => t.status === 'stock' && lotImported(t.lot)).length})</small></button>
-      ${dupBanner()}${pendBanner()}
+      ${dupBanner()}${pendBanner()}${loanBanner()}
       ${lowPaper().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">🖨️ Stock de tickets papier bas : ${lowPaper().map(f => `${esc(f.nom)} (${paperOf(f.id).length})`).join(', ')}.</div>` : ''}
       ${lowStock().length ? `<div class="card warn" data-a="tab" data-v="tix" style="cursor:pointer">🎟 Stock de tickets bas : ${lowStock().map(f => `${esc(f.nom)} (${stockOf(f.id).length})`).join(', ')}. Touchez ici pour générer un lot.</div>` : ''}
       <section class="hero"><small>${greet()}${me ? ', ' + esc(me.name) : ''}</small><div class="hero-greet">${esc(fdate(r[0]))}${r[0] !== r[1] ? ' → ' + esc(fdate(r[1])) : ''}</div>
@@ -512,6 +512,20 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       <button class="btn full" data-a="newexp" style="margin:0 0 12px">+ Nouvelle dépense</button>
       <div class="card">${E.length ? E.map(e => `<div class="row"><div class="g"><b>${esc(e.label || e.cat)}</b><small>${fdate(e.date)} · ${esc(e.cat)} · ${esc(e.mode)}</small></div><b class="bad">${fmt(e.amount, e.cur)}</b><button class="btn sm sec" data-a="delexp" data-v="${e.id}">✕</button></div>`).join('') : '<div class="empty">Aucune dépense.</div>'}</div>` };
   };
+  // loans (« emprunts »): who borrowed what and when; sellers can note a loan and mark it as given back, only a gérant can delete one
+  const LKIND = { argent: ['💵', 'Argent'], ticket: ['🎫', 'Ticket / forfait'], mat: ['🔧', 'Matériel'], autre: ['📦', 'Autre'] };
+  const loanOpen = () => db.loans.filter(x => x.status !== 'back');
+  const loanDays = d => Math.max(0, Math.round((new Date(today() + 'T12:00') - new Date(d + 'T12:00')) / 864e5));
+  const loanBanner = () => { const o = loanOpen(); return o.length ? `<div class="card warn" data-a="tab" data-v="loan" style="cursor:pointer">🤝 ${o.length} emprunt(s) non rendu(s)${(() => { const a = sum(o.filter(x => x.amount > 0), x => toCDF(x.amount, x.cur, x.rate)); return a > 0 ? ' · ' + fmt(a) + ' à récupérer' : ''; })()}. Touchez ici pour voir.</div>` : ''; };
+  views.loan = () => {
+    const all = db.loans.slice().sort((a, b) => b.ts - a.ts), open = loanOpen(), back = all.filter(x => x.status === 'back'), L = st.lf === 'back' ? back : st.lf === 'all' ? all : all.filter(x => x.status !== 'back');
+    const owed = sum(open.filter(x => x.amount > 0), x => toCDF(x.amount, x.cur, x.rate));
+    return { title: 'Emprunts', sub: open.length ? open.length + ' non rendu(s)' : 'Rien à récupérer', html: `
+      <div class="grid"><div class="stat"><small>Non rendus</small><b class="${open.length ? 'bad' : 'ok'}">${open.length}</b></div><div class="stat"><small>Argent à récupérer</small><b class="${owed ? 'bad' : ''}">${fmt(owed)}</b></div></div>
+      <button class="btn full" data-a="newloan" style="margin:0 0 12px">+ Noter un emprunt</button>
+      ${chips('lf', st.lf, [['open', `Non rendus (${open.length})`], ['back', `Rendus (${back.length})`], ['all', 'Tous']])}
+      <div class="card">${L.length ? L.map(x => { const k = LKIND[x.kind] || LKIND.autre, isBack = x.status === 'back'; return `<div class="row loanrow"><div class="g"><b>${esc(x.who)}</b><small>${k[0]} ${esc(x.label || k[1])} · emprunté le ${fdate(x.date)}${x.by ? ' · noté par ' + esc(x.by) : ''}${isBack ? ` · <span class="ok">rendu le ${fdate(x.backDate)}${x.backBy ? ' (' + esc(x.backBy) + ')' : ''}</span>` : ` · depuis ${loanDays(x.date)} j`}${x.phone ? ' · ' + esc(x.phone) : ''}${x.note ? '<br>' + esc(x.note) : ''}</small></div>${x.amount > 0 ? `<b class="${isBack ? '' : 'bad'}">${fmt(x.amount, x.cur)}</b>` : ''}${isBack ? '' : `<button class="btn sm" data-a="loanback" data-v="${esc(x.id)}">✓ Rendu</button>`}${isMgr() ? `<button class="btn sm sec" data-a="delloan" data-v="${esc(x.id)}">✕</button>` : ''}</div>`; }).join('') : `<div class="empty">${st.lf === 'back' ? 'Aucun emprunt rendu.' : 'Aucun emprunt à récupérer.'}</div>`}</div>` };
+  };
   // daily closing: cash that should be in the drawer vs cash counted
   const dayData = d => {
     const S = db.sales.filter(s => s.date === d), E = db.expenses.filter(e => e.date === d), cash = { CDF: 0, USD: 0 };
@@ -640,7 +654,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       <a class="btn sec full" href="privacy.html" target="_blank" rel="noopener" style="text-decoration:none;text-align:center">🔒 Politique de confidentialité</a></div>
     <p class="mut" style="text-align:center">WiFi Zone Manager · ${VERSION}</p>` });
 
-  const NAV = [['home', '🏠', 'Accueil'], ['sell', '🎫', 'Vendre'], ['tix', '🎟️', 'Tickets'], ['exp', '💸', 'Dépenses'], ['day', '🌙', 'Clôture'], ['rep', '📊', 'Rapport'], ['set', '⚙️', 'Réglages']];
+  const NAV = [['home', '🏠', 'Accueil'], ['sell', '🎫', 'Vendre'], ['tix', '🎟️', 'Tickets'], ['exp', '💸', 'Dépenses'], ['loan', '🤝', 'Emprunts'], ['day', '🌙', 'Clôture'], ['rep', '📊', 'Rapport'], ['set', '⚙️', 'Réglages']];
   // ---------- Animated dashboard (same sky as CISPOLstore Manager) ----------
   // Stars linked like a network, additive neon glows and a changing sequence of scenes (satellite train, meteor shower, comet, WiFi rings, orbits, light pulse),
   // in a page-wide canvas behind the home screen and a small one inside the sales card. One 30 fps loop; it stops on other screens, when the page is hidden,
@@ -740,7 +754,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   // The whole data set is encrypted on the phone (AES-GCM, key derived from a passphrase) and stored as one opaque row
   // in the user's own Supabase project (same table and functions as CISPOLstore Manager, other workspace name).
   // Devices merge record by record against the last synced snapshot (three-way merge), so offline edits on several phones are combined.
-  const CKEY = 'wifizone-sync', COLL = ['sales', 'expenses', 'closings', 'forfaits', 'tickets', 'lots', 'users'], SHARED = ['name', 'rate', 'server', 'seuil', 'noProfiles', 'ssid', 'loginHost'], js = JSON.stringify;
+  const CKEY = 'wifizone-sync', COLL = ['sales', 'expenses', 'loans', 'closings', 'forfaits', 'tickets', 'lots', 'users'], SHARED = ['name', 'rate', 'server', 'seuil', 'noProfiles', 'ssid', 'loginHost'], js = JSON.stringify;
   let cfg = null; try { cfg = JSON.parse(localStorage.getItem(CKEY)); } catch (e) {}
   const saveCfg = () => { try { localStorage.setItem(CKEY, js(cfg)); } catch (e) {} };
   const SY = { status: cfg ? 'idle' : 'off', error: '', summary: '' };
@@ -885,7 +899,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   // Sign-in is by PIN only: the code itself selects the profile (so every PIN is unique). Profiles + PIN hashes sync between devices.
   // Roles are enforced in this app (they stop casual misuse, not someone who knows the sync passphrase).
   let me = null;
-  const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix'], SELLER_ACTS = new Set(['tab', 'src', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn', 'keys']);
+  const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix', 'loan'], SELLER_ACTS = new Set(['tab', 'lf', 'newloan', 'loanback', 'src', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn', 'keys']);
   const MAXG = 4, MING = 2; // up to 4 gérants (the first two are created at start-up); a vendeur is added with its own button
   const profilesOn = () => db.users.length > 0;
   const gerants = () => db.users.filter(u => u.role === 'gerant');
@@ -1033,6 +1047,18 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       const amount = +$('e_amt').value; if (!(amount > 0)) { toast('Montant invalide'); return false; }
       db.expenses.push({ id: uid(), ts: Date.now(), date: $('e_date').value || today(), label: $('e_label').value.trim(), cat: $('e_cat').value, amount, cur: $('e_cur').value, rate: db.rate, mode: $('e_mode').value }); save(); draw(); toast('Dépense enregistrée');
     }),
+    lf: v => { st.lf = v; draw(); },
+    newloan: () => modal('Noter un emprunt', `<label>Qui emprunte ?</label><input id="l_who" list="l_names" placeholder="Nom de la personne" autocomplete="off"><datalist id="l_names">${[...new Set(db.loans.map(x => x.who))].map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      <label>Quoi ?</label><select id="l_kind">${Object.entries(LKIND).map(([k, v]) => `<option value="${k}">${v[0]} ${v[1]}</option>`).join('')}</select>
+      <label>Détail (facultatif)</label><input id="l_label" placeholder="Ex. 1 forfait Jour, un câble, 5 000 FC">
+      <div style="display:flex;gap:8px"><div style="flex:2"><label>Montant (obligatoire pour l'argent)</label><input id="l_amt" type="number" inputmode="decimal" min="0"></div><div style="flex:1"><label>Devise</label><select id="l_cur"><option>CDF</option><option>USD</option></select></div></div>
+      <label>Téléphone (facultatif)</label><input id="l_tel" type="tel" inputmode="tel"><label>Date</label><input id="l_date" type="date" value="${today()}" max="${today()}"><label>Note (facultatif)</label><input id="l_note" placeholder="Ex. promet de rendre samedi">`, () => {
+      const who = $('l_who').value.trim(), kind = $('l_kind').value, amount = +$('l_amt').value || 0; if (!who) { toast('Indiquez qui emprunte'); return false; }
+      if (kind === 'argent' && !(amount > 0)) { toast('Indiquez le montant emprunté'); return false; }
+      db.loans.push({ id: uid(), ts: Date.now(), date: $('l_date').value || today(), who, kind, label: $('l_label').value.trim(), amount, cur: $('l_cur').value, rate: db.rate, phone: $('l_tel').value.trim(), note: $('l_note').value.trim(), by: me ? me.name : '', status: 'open' }); save(); draw(); toast('Emprunt enregistré');
+    }),
+    loanback: v => { const x = db.loans.find(l => l.id === v); if (x && x.status !== 'back' && confirm(`${x.who} a bien rendu${x.amount > 0 ? ' ' + fmt(x.amount, x.cur) : ''} ?`)) { x.status = 'back'; x.backDate = today(); x.backBy = me ? me.name : ''; save(); draw(); toast('Marqué comme rendu'); } },
+    delloan: v => { const x = db.loans.find(l => l.id === v); if (x && confirm(`Supprimer l'emprunt de ${x.who} ?`)) { db.loans = db.loans.filter(l => l !== x); save(); draw(); } },
     delexp: v => { const e = db.expenses.find(x => x.id === v); if (e && confirm(`Supprimer cette dépense de ${fmt(e.amount, e.cur)} ?`)) { db.expenses = db.expenses.filter(x => x !== e); save(); draw(); } },
     dnav: v => { const n = addDays(st.cd, +v); if (n <= today()) { st.cd = n; draw(); } },
     close: () => { const raw = $('ccount').value; if (raw === '') return toast('Saisissez le cash compté'); const x = dayData(st.cd), counted = +raw, diff = Math.round(counted - x.cash.CDF);
@@ -1105,7 +1131,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     restore: () => $('rfile').click()
   };
   // ---------- keyboard shortcuts (computers) ----------
-  const KEYS_NAV = { h: ['home', 'Accueil'], v: ['sell', 'Vendre'], t: ['tix', 'Tickets'], d: ['exp', 'Dépenses'], c: ['day', 'Clôture'], r: ['rep', 'Rapport'], s: ['set', 'Réglages'] };
+  const KEYS_NAV = { h: ['home', 'Accueil'], v: ['sell', 'Vendre'], t: ['tix', 'Tickets'], d: ['exp', 'Dépenses'], e: ['loan', 'Emprunts'], c: ['day', 'Clôture'], r: ['rep', 'Rapport'], s: ['set', 'Réglages'] };
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__installEv = e; });
   window.addEventListener('appinstalled', () => { window.__installEv = null; toast('WiFi Zone est installée ✓'); });
   A.install = async () => {
