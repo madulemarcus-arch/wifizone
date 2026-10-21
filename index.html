@@ -249,7 +249,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v33'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v34'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -530,12 +530,22 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   const dayData = d => {
     const S = db.sales.filter(s => s.date === d), E = db.expenses.filter(e => e.date === d), cash = { CDF: 0, USD: 0 };
     S.filter(s => s.mode === 'Cash').forEach(s => cash.CDF += s.amount); E.filter(e => e.mode === 'Cash').forEach(e => cash[e.cur] -= e.amount);
-    return { d, S, E, inc: sum(S, saleCDF), out: sum(E, expCDF), tickets: sum(S, s => s.qty), cash, cl: db.closings.find(c => c.date === d) };
+    // money borrowed from the drawer that day leaves it, money given back that day returns to it; « gross » is the cash before any loan
+    const gross = { ...cash }, taken = { CDF: 0, USD: 0 }, back = { CDF: 0, USD: 0 }, cashLoans = db.loans.filter(l => l.kind === 'argent' && l.amount > 0);
+    const out1 = cashLoans.filter(l => l.date === d), in1 = cashLoans.filter(l => l.status === 'back' && l.backDate === d);
+    out1.forEach(l => { taken[l.cur] += l.amount; cash[l.cur] -= l.amount; }); in1.forEach(l => { back[l.cur] += l.amount; cash[l.cur] += l.amount; });
+    return { d, S, E, inc: sum(S, saleCDF), out: sum(E, expCDF), tickets: sum(S, s => s.qty), cash, gross, taken, back, out1, in1, cl: db.closings.find(c => c.date === d) };
   };
+  const cashTxt = c => Math.abs(c.USD) <= .004 ? fmt(c.CDF) : c.CDF ? fmt(c.CDF) + ' + ' + fmt(c.USD, 'USD') : fmt(c.USD, 'USD');
+  // the loan lines of the closing: total expected (in brackets), money taken, money given back, money left
+  const loanCash = x => x.out1.length || x.in1.length ? [
+    ...(x.out1.length ? [['🤝 Argent pris à la caisse (emprunts)', '− ' + cashTxt(x.taken), x.out1.map(l => l.who).join(', ')]] : []),
+    ...(x.in1.length ? [['↩️ Argent rendu aujourd\'hui', '+ ' + cashTxt(x.back), x.in1.map(l => l.who).join(', ')]] : [])] : [];
   const dayText = x => {
     const L = [`🌐 ${db.name} — Journée du ${fdate(x.d)}`, '', `🎫 ${x.tickets} ticket(s) vendus : ${fmt(x.inc)}`];
     const byF = {}; x.S.forEach(s => byF[s.fid] = (byF[s.fid] || 0) + s.qty); Object.entries(byF).forEach(([id, q]) => L.push(`   • ${fname(id)} : ${q}`));
-    L.push(`💸 Dépenses : ${fmt(x.out)}`, `✅ Bénéfice du jour : ${fmt(x.inc - x.out)}`, '', `💵 Cash attendu en caisse : ${fmt(x.cash.CDF)}${Math.abs(x.cash.USD) > .004 ? ' + ' + fmt(x.cash.USD, 'USD') : ''}`);
+    L.push(`💸 Dépenses : ${fmt(x.out)}`, `✅ Bénéfice du jour : ${fmt(x.inc - x.out)}`, '', `💵 Cash attendu en caisse : ${cashTxt(x.cash)}${loanCash(x).length ? ` (total prévu ${cashTxt(x.gross)})` : ''}`);
+    loanCash(x).forEach(r => L.push(`   ${r[0]} : ${r[1]} (${r[2]})`));
     if (x.cl) L.push(`Cash compté : ${fmt(x.cl.counted)}${x.cl.diff ? ' · Écart : ' + fmt(x.cl.diff) : ' · aucun écart'}`);
     return L.join('\n');
   };
@@ -547,7 +557,8 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
         <div class="hero-num" data-count="${x.inc}">${fmt(x.inc)}</div><small>${x.tickets} ticket(s) vendu(s)</small>
         <div class="hstats"><div class="bad"><b>${fmt(x.out)}</b><small>dépenses</small></div><div class="${x.inc - x.out >= 0 ? 'ok' : 'bad'}"><b>${fmt(x.inc - x.out)}</b><small>bénéfice du jour</small></div><div><b>${fmt(x.cash.CDF)}</b><small>cash attendu</small></div></div></section>
       ${(() => { const by = {}; x.S.forEach(v => { const k = v.by || '—'; const o = by[k] = by[k] || { q: 0, a: 0 }; o.q += v.qty; o.a += v.amount; }); const ks = Object.keys(by); return ks.length && ks.some(k => k !== '—') ? `<h2>Par profil</h2><div class="card">${ks.map(k => `<div class="row"><div class="g"><b>${k === '—' ? 'Sans profil' : esc(k)}</b><small>${by[k].q} ticket(s)</small></div><b>${fmt(by[k].a)}</b></div>`).join('')}</div>` : ''; })()}
-      <h2>💵 Caisse (cash)</h2><div class="card"><div class="row"><div class="g">Cash attendu</div><b>${fmt(x.cash.CDF)}${Math.abs(x.cash.USD) > .004 ? ' + ' + fmt(x.cash.USD, 'USD') : ''}</b></div>
+      <h2>💵 Caisse (cash)</h2><div class="card"><div class="row"><div class="g">Cash attendu${loanCash(x).length ? '<small>argent qui doit rester dans la caisse</small>' : ''}</div><b>${cashTxt(x.cash)}${loanCash(x).length ? ` <small style="font-weight:400">(total prévu ${cashTxt(x.gross)})</small>` : ''}</b></div>
+        ${loanCash(x).map(r => `<div class="row"><div class="g">${r[0]}<small>${esc(r[2])}</small></div><b class="${r[1][0] === '−' ? 'bad' : 'ok'}">${r[1]}</b></div>`).join('')}
         <label>Cash compté (FC)</label><input id="ccount" type="number" inputmode="numeric" min="0" value="${cl ? cl.counted : ''}" placeholder="${nf(x.cash.CDF)}">
         <label>Note (facultatif)</label><input id="cnote" value="${esc(cl ? cl.note : '')}" placeholder="Ex. 2 000 FC pour le transport">
         ${cl ? `<p class="${cl.diff ? 'warn' : 'ok'}"><b>✅ Clôturée · compté ${fmt(cl.counted)} · ${cl.diff ? 'écart ' + fmt(cl.diff) : 'aucun écart'}</b></p>` : ''}
