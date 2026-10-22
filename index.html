@@ -249,7 +249,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v37'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v38'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -515,16 +515,20 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   // loans (« emprunts »): who borrowed what and when; sellers can note a loan and mark it as given back, only a gérant can delete one
   const LKIND = { argent: ['💵', 'Argent'], ticket: ['🎫', 'Ticket / forfait'], mat: ['🔧', 'Matériel'], autre: ['📦', 'Autre'] };
   const loanOpen = () => db.loans.filter(x => x.status !== 'back');
+  // repayments: l.pays = [{ id, date, amount, by }]; a loan given back in full before this feature has no list, so it counts as one payment of its whole amount
+  const loanPays = l => l.pays && l.pays.length ? l.pays : (l.status === 'back' && l.amount > 0 ? [{ id: 'full', date: l.backDate, amount: l.amount, by: l.backBy }] : []);
+  const loanPaid = l => sum(loanPays(l), p => p.amount);
+  const loanLeft = l => l.amount > 0 ? Math.max(0, Math.round((l.amount - loanPaid(l)) * 100) / 100) : 0;
   const loanDays = d => Math.max(0, Math.round((new Date(today() + 'T12:00') - new Date(d + 'T12:00')) / 864e5));
-  const loanBanner = () => { const o = loanOpen(); return o.length ? `<div class="card warn" data-a="tab" data-v="loan" style="cursor:pointer">🤝 ${o.length} emprunt(s) non rendu(s)${(() => { const a = sum(o.filter(x => x.amount > 0), x => toCDF(x.amount, x.cur, x.rate)); return a > 0 ? ' · ' + fmt(a) + ' à récupérer' : ''; })()}. Touchez ici pour voir.</div>` : ''; };
+  const loanBanner = () => { const o = loanOpen(); return o.length ? `<div class="card warn" data-a="tab" data-v="loan" style="cursor:pointer">🤝 ${o.length} emprunt(s) non rendu(s)${(() => { const a = sum(o.filter(x => x.amount > 0), x => toCDF(loanLeft(x), x.cur, x.rate)); return a > 0 ? ' · ' + fmt(a) + ' à récupérer' : ''; })()}. Touchez ici pour voir.</div>` : ''; };
   views.loan = () => {
     const all = db.loans.slice().sort((a, b) => b.ts - a.ts), open = loanOpen(), back = all.filter(x => x.status === 'back'), L = st.lf === 'back' ? back : st.lf === 'all' ? all : all.filter(x => x.status !== 'back');
-    const owed = sum(open.filter(x => x.amount > 0), x => toCDF(x.amount, x.cur, x.rate));
+    const owed = sum(open.filter(x => x.amount > 0), x => toCDF(loanLeft(x), x.cur, x.rate));
     return { title: 'Emprunts', sub: open.length ? open.length + ' non rendu(s)' : 'Rien à récupérer', html: `
       <div class="grid"><div class="stat"><small>Non rendus</small><b class="${open.length ? 'bad' : 'ok'}">${open.length}</b></div><div class="stat"><small>Argent à récupérer</small><b class="${owed ? 'bad' : ''}">${fmt(owed)}</b></div></div>
       <button class="btn full" data-a="newloan" style="margin:0 0 12px">+ Noter un emprunt</button>
       ${chips('lf', st.lf, [['open', `Non rendus (${open.length})`], ['back', `Rendus (${back.length})`], ['all', 'Tous']])}
-      <div class="card">${L.length ? L.map(x => { const k = LKIND[x.kind] || LKIND.autre, isBack = x.status === 'back'; return `<div class="row loanrow"><div class="g"><b>${esc(x.who)}</b><small>${k[0]} ${esc(x.label || k[1])} · emprunté le ${fdate(x.date)}${x.by ? ' · noté par ' + esc(x.by) : ''}${isBack ? ` · <span class="ok">rendu le ${fdate(x.backDate)}${x.backBy ? ' (' + esc(x.backBy) + ')' : ''}</span>` : ` · depuis ${loanDays(x.date)} j`}${x.phone ? ' · ' + esc(x.phone) : ''}${x.note ? '<br>' + esc(x.note) : ''}</small></div>${x.amount > 0 ? `<b class="${isBack ? '' : 'bad'}">${fmt(x.amount, x.cur)}</b>` : ''}${isBack ? '' : `<button class="btn sm" data-a="loanback" data-v="${esc(x.id)}">✓ Rendu</button>`}${isMgr() ? `<button class="btn sm sec" data-a="delloan" data-v="${esc(x.id)}">✕</button>` : ''}</div>`; }).join('') : `<div class="empty">${st.lf === 'back' ? 'Aucun emprunt rendu.' : 'Aucun emprunt à récupérer.'}</div>`}</div>` };
+      <div class="card">${L.length ? L.map(x => { const k = LKIND[x.kind] || LKIND.autre, isBack = x.status === 'back'; return `<div class="row loanrow"><div class="g"><b>${esc(x.who)}</b><small>${k[0]} ${esc(x.label || k[1])} · emprunté le ${fdate(x.date)}${x.by ? ' · noté par ' + esc(x.by) : ''}${isBack ? ` · <span class="ok">rendu le ${fdate(x.backDate)}${x.backBy ? ' (' + esc(x.backBy) + ')' : ''}</span>` : ` · depuis ${loanDays(x.date)} j`}${x.phone ? ' · ' + esc(x.phone) : ''}${x.note ? '<br>' + esc(x.note) : ''}${x.amount > 0 && loanPays(x).length ? `<br><span class="ok">Rendu : ${fmt(loanPaid(x), x.cur)} sur ${fmt(x.amount, x.cur)}</span> · ${loanPays(x).map(q => fdate(q.date) + ' ' + fmt(q.amount, x.cur) + (q.by ? ' (' + esc(q.by) + ')' : '')).join(' ; ')}` : ''}</small></div>${x.amount > 0 ? `<div style="text-align:right"><b class="${isBack ? '' : 'bad'}">${fmt(isBack ? x.amount : loanLeft(x), x.cur)}</b><small style="display:block">${isBack ? 'total rendu' : (loanPaid(x) > 0 ? 'reste à rendre' : 'à rendre')}</small></div>` : ''}${isBack ? '' : `${x.amount > 0 ? `<button class="btn sm" data-a="loanpay" data-v="${esc(x.id)}">+ Remboursement</button>` : ''}<button class="btn sm ${x.amount > 0 ? 'sec' : ''}" data-a="loanback" data-v="${esc(x.id)}">✓ ${x.amount > 0 && loanPaid(x) > 0 ? 'Tout rendu' : 'Rendu'}</button>`}${isMgr() ? `<button class="btn sm sec" data-a="delloan" data-v="${esc(x.id)}">✕</button>` : ''}</div>`; }).join('') : `<div class="empty">${st.lf === 'back' ? 'Aucun emprunt rendu.' : 'Aucun emprunt à récupérer.'}</div>`}</div>` };
   };
   // daily closing: cash that should be in the drawer vs cash counted
   const dayData = d => {
@@ -532,8 +536,8 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     S.filter(s => s.mode === 'Cash').forEach(s => cash.CDF += s.amount); E.filter(e => e.mode === 'Cash').forEach(e => cash[e.cur] -= e.amount);
     // money borrowed from the drawer that day leaves it, money given back that day returns to it; « gross » is the cash before any loan
     const gross = { ...cash }, taken = { CDF: 0, USD: 0 }, back = { CDF: 0, USD: 0 }, cashLoans = db.loans.filter(l => l.kind === 'argent' && l.amount > 0);
-    const out1 = cashLoans.filter(l => l.date === d), in1 = cashLoans.filter(l => l.status === 'back' && l.backDate === d);
-    out1.forEach(l => { taken[l.cur] += l.amount; cash[l.cur] -= l.amount; }); in1.forEach(l => { back[l.cur] += l.amount; cash[l.cur] += l.amount; });
+    const out1 = cashLoans.filter(l => l.date === d), in1 = cashLoans.filter(l => loanPays(l).some(q => q.date === d));
+    out1.forEach(l => { taken[l.cur] += l.amount; cash[l.cur] -= l.amount; }); in1.forEach(l => loanPays(l).filter(q => q.date === d).forEach(q => { back[l.cur] += q.amount; cash[l.cur] += q.amount; }));
     return { d, S, E, inc: sum(S, saleCDF), out: sum(E, expCDF), tickets: sum(S, s => s.qty), cash, gross, taken, back, out1, in1, cl: db.closings.find(c => c.date === d) };
   };
   const cashTxt = c => Math.abs(c.USD) <= .004 ? fmt(c.CDF) : c.CDF ? fmt(c.CDF) + ' + ' + fmt(c.USD, 'USD') : fmt(c.USD, 'USD');
@@ -570,8 +574,8 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     const byF = {}, byC = {}, byD = {}; S.forEach(s => { const o = byF[s.fid] = byF[s.fid] || { q: 0, a: 0 }; o.q += s.qty; o.a += s.amount; (byD[s.date] = byD[s.date] || { i: 0, o: 0 }).i += s.amount; });
     E.forEach(e => { byC[e.cat] = (byC[e.cat] || 0) + expCDF(e); (byD[e.date] = byD[e.date] || { i: 0, o: 0 }).o += expCDF(e); });
     // money borrowed from the till in the month, and money given back in it (a loan can be borrowed and returned in different months)
-    const LN = db.loans.filter(l => l.kind === 'argent' && l.amount > 0), L1 = LN.filter(l => inR(l.date, r)), L2 = LN.filter(l => l.status === 'back' && inR(l.backDate, r));
-    const lent = sum(L1, l => toCDF(l.amount, l.cur, l.rate)), back = sum(L2, l => toCDF(l.amount, l.cur, l.rate)), inc = sum(S, saleCDF), out = sum(E, expCDF);
+    const LN = db.loans.filter(l => l.kind === 'argent' && l.amount > 0), L1 = LN.filter(l => inR(l.date, r)), L2 = LN.filter(l => loanPays(l).some(q => inR(q.date, r)));
+    const lent = sum(L1, l => toCDF(l.amount, l.cur, l.rate)), back = sum(L2, l => sum(loanPays(l).filter(q => inR(q.date, r)), q => toCDF(q.amount, l.cur, l.rate))), inc = sum(S, saleCDF), out = sum(E, expCDF);
     return { m, S, E, inc, out, tickets: sum(S, s => s.qty), byF, byC, byD, L1, L2, lent, back, left: inc - out - lent + back };
   };
   // « 77 000 FC − 25 000 FC emprunté + 5 000 FC rendu = 57 000 FC »: the sales figure with its loan calculation
@@ -921,7 +925,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   // Sign-in is by PIN only: the code itself selects the profile (so every PIN is unique). Profiles + PIN hashes sync between devices.
   // Roles are enforced in this app (they stop casual misuse, not someone who knows the sync passphrase).
   let me = null;
-  const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix', 'loan'], SELLER_ACTS = new Set(['tab', 'lf', 'newloan', 'loanback', 'src', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn', 'keys']);
+  const ROLES = { gerant: 'Gérant', vendeur: 'Vendeur' }, SELLER_VIEWS = ['home', 'sell', 'tix', 'loan'], SELLER_ACTS = new Set(['tab', 'lf', 'newloan', 'loanback', 'loanpay', 'src', 'per', 'fid', 'qty', 'mode', 'sell', 'update', 'reload', 'lockn', 'keys']);
   const MAXG = 4, MING = 2; // up to 4 gérants (the first two are created at start-up); a vendeur is added with its own button
   const profilesOn = () => db.users.length > 0;
   const gerants = () => db.users.filter(u => u.role === 'gerant');
@@ -1079,7 +1083,17 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       if (kind === 'argent' && !(amount > 0)) { toast('Indiquez le montant emprunté'); return false; }
       db.loans.push({ id: uid(), ts: Date.now(), date: $('l_date').value || today(), who, kind, label: $('l_label').value.trim(), amount, cur: $('l_cur').value, rate: db.rate, phone: $('l_tel').value.trim(), note: $('l_note').value.trim(), by: me ? me.name : '', status: 'open' }); save(); draw(); toast('Emprunt enregistré');
     }),
-    loanback: v => { const x = db.loans.find(l => l.id === v); if (x && x.status !== 'back' && confirm(`${x.who} a bien rendu${x.amount > 0 ? ' ' + fmt(x.amount, x.cur) : ''} ?`)) { x.status = 'back'; x.backDate = today(); x.backBy = me ? me.name : ''; save(); draw(); toast('Marqué comme rendu'); } },
+    loanpay: v => { const x = db.loans.find(l => l.id === v); if (!x || !(x.amount > 0) || x.status === 'back') return;
+      modal('Remboursement de ' + x.who, `<p class="mut" style="margin-top:0">Emprunté : <b>${fmt(x.amount, x.cur)}</b> · déjà rendu : <b>${fmt(loanPaid(x), x.cur)}</b> · reste : <b>${fmt(loanLeft(x), x.cur)}</b></p>
+        <label>Montant rendu (${x.cur})</label><input id="p_amt" type="number" inputmode="decimal" min="0" value="${loanLeft(x)}"><label>Date</label><input id="p_date" type="date" value="${today()}" max="${today()}">`, () => {
+        const amt = +$('p_amt').value; if (!(amt > 0)) { toast('Montant invalide'); return false; }
+        if (amt > loanLeft(x) + .004) { toast('Plus que le reste à rendre (' + fmt(loanLeft(x), x.cur) + ')'); return false; }
+        const date = $('p_date').value || today(); (x.pays = loanPays(x).slice()).push({ id: uid(), date, amount: amt, by: me ? me.name : '' });
+        if (loanLeft(x) <= .004) { x.status = 'back'; x.backDate = date; x.backBy = me ? me.name : ''; }
+        save(); draw(); toast(x.status === 'back' ? 'Tout est rendu' : 'Reste à rendre : ' + fmt(loanLeft(x), x.cur));
+      }, 'Enregistrer');
+    },
+    loanback: v => { const x = db.loans.find(l => l.id === v); if (x && x.status !== 'back' && confirm(`${x.who} a bien rendu${x.amount > 0 ? ' le reste (' + fmt(loanLeft(x), x.cur) + ')' : ''} ?`)) { if (x.amount > 0 && loanLeft(x) > .004) (x.pays = loanPays(x).slice()).push({ id: uid(), date: today(), amount: loanLeft(x), by: me ? me.name : '' }); x.status = 'back'; x.backDate = today(); x.backBy = me ? me.name : ''; save(); draw(); toast('Marqué comme rendu'); } },
     delloan: v => { const x = db.loans.find(l => l.id === v); if (x && confirm(`Supprimer l'emprunt de ${x.who} ?`)) { db.loans = db.loans.filter(l => l !== x); save(); draw(); } },
     delexp: v => { const e = db.expenses.find(x => x.id === v); if (e && confirm(`Supprimer cette dépense de ${fmt(e.amount, e.cur)} ?`)) { db.expenses = db.expenses.filter(x => x !== e); save(); draw(); } },
     dnav: v => { const n = addDays(st.cd, +v); if (n <= today()) { st.cd = n; draw(); } },
