@@ -1,0 +1,52 @@
+const BASE = process.env.BASE_URL || 'http://localhost:8775';
+const { chromium, devices } = require('playwright');let f=0;const ok=(n,c,x='')=>{console.log((c?'PASS ':'FAIL ')+n+(x?' '+x:''));if(!c)f++};
+// Fictitious codes only: the repository is public.
+(async()=>{const b=await chromium.launch({executablePath: process.env.CHROMIUM_PATH || undefined});const ctx=await b.newContext({...devices['Pixel 5'],acceptDownloads:true});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
+await p.goto(BASE + '/index.html');await p.waitForTimeout(500);
+await p.evaluate(async()=>{const sha=async x=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(x)))].map(b=>b.toString(16).padStart(2,'0')).join('');const U=async(id,name,role,pin)=>({id,name,role,salt:'s'+id,hash:await sha('s'+id+':'+pin)});const k='wifizone-v1',db=JSON.parse(localStorage.getItem(k)||'{}'),n=Date.now();
+ db.noProfiles=false;db.users=[await U('u1','Marie','vendeur','1111'),await U('u3','Chef','gerant','1234')];
+ db.lots=[{id:'L1',ts:n-5000,fid:'J',n:3,dest:'app'},{id:'L2',ts:n-4000,fid:'V',n:2,dest:'paper'},{id:'L3',ts:n-3000,fid:'J',n:1,dest:'app',imported:false}];
+ const T=(code,fid,lot,status,i)=>({id:code,code,ts:n-9000+i,fid,lot,status});
+ db.sales=[{id:'S1',ts:n-1000,date:new Date().toISOString().slice(0,10),fid:'J',qty:1,amount:1000,mode:'M-Pesa',ref:'',codes:['JAAA222'],by:'Marie'}];
+ db.tickets=[T('JAAA111','J','L1','stock',1),{...T('JAAA222','J','L1','sold',2),saleId:'S1',soldAt:n-1000},T('JAAA333','J','L1','stock',3),T('VBBB111','V','L2','stock',4),T('VBBB222','V','L2','stock',5),T('JCCC111','J','L3','stock',6)];
+ localStorage.setItem(k,JSON.stringify(db));location.reload()});await p.waitForTimeout(1000);
+const pin=async d=>{for(const c of d){await p.click('[data-k="'+c+'"]');await p.waitForTimeout(80)}await p.waitForTimeout(700)};
+// a seller does not get the list of codes
+await pin('1111');await p.click('nav button[data-v=tix]');await p.waitForTimeout(400);
+ok('seller: no « tickets non utilisés » button and the codes are not shown',(await p.$$('[data-a=tab][data-v=free]')).length===0&&!/JAAA111/.test(await p.innerText('#view')));
+await p.click('#lockBtn');await p.waitForTimeout(500);await pin('1234');
+await p.click('nav button[data-v=tix]');await p.waitForTimeout(400);
+ok('gérant: the Tickets tab offers « Voir les tickets non utilisés (5) et vendus (1) »',/Voir les tickets non utilisés \(5\) et vendus \(1\)/.test(await p.innerText('#view')));
+await p.click('[data-a=tab][data-v=free]');await p.waitForTimeout(400);
+let v=await p.innerText('#view');
+ok('all 5 unused codes are listed, the sold one is not',['JAAA111','JAAA333','VBBB111','VBBB222','JCCC111'].every(c=>v.includes(c))&&!v.includes('JAAA222'),v.slice(0,200));
+ok('title and counter say 5 tickets',/5 ticket\(s\)/.test(v)&&/Tickets non utilisés/.test(await p.innerText('#ttl')));
+ok('the Tickets tab stays highlighted',await p.evaluate(()=>document.querySelector('nav button.on').dataset.v==='tix'));
+ok('destination shown, and the lot not yet imported is flagged',/🖨️ papier/.test(v)&&/📱 application/.test(v)&&/à importer dans le routeur/.test(v));
+await p.click('[data-a=fdest][data-v=paper]');await p.waitForTimeout(300);v=await p.innerText('#view');
+ok('filter « Papier »: only the 2 paper tickets',/VBBB111/.test(v)&&/VBBB222/.test(v)&&!/JAAA111/.test(v)&&/2 ticket\(s\)/.test(v));
+await p.click('[data-a=fdest][data-v=all]');await p.waitForTimeout(200);await p.click('[data-a=ffor][data-v=J]');await p.waitForTimeout(300);v=await p.innerText('#view');
+ok('filter forfait « Jour »: 3 unused (JAAA111, JAAA333, JCCC111)',/JAAA111/.test(v)&&/JAAA333/.test(v)&&/JCCC111/.test(v)&&!/VBBB/.test(v));
+await p.click('[data-a=ffor][data-v=all]');await p.waitForTimeout(200);
+await p.fill('#uq','bbb2');await p.waitForTimeout(300);v=await p.innerText('#ulist');
+ok('search by part of a code (case-insensitive)',/VBBB222/.test(v)&&!/VBBB111/.test(v)&&/1 ticket\(s\)/.test(await p.innerText('#ucnt')));
+await p.fill('#uq','');await p.waitForTimeout(200);
+const [dl]=await Promise.all([p.waitForEvent('download',{timeout:15000}),p.click('[data-a=freecsv]')]);
+const csv=require('fs').readFileSync(await dl.path(),'utf8');
+ok('CSV: header and the 5 unused codes, none sold',/"Code";"Forfait";"Destination"/.test(csv)&&csv.split('\n').length===6&&!/JAAA222/.test(csv)&&/"JCCC111";"Jour";"application";[^;]*;"non"/.test(csv),csv.slice(0,200));
+// the sold tickets have their own side
+await p.click('[data-a=fstat][data-v=sold]');await p.waitForTimeout(300);v=await p.innerText('#view');
+ok('« Vendus » side: title and the one sold ticket with its sale (date, seller, payment mode)',/Tickets vendus/.test(await p.innerText('#ttl'))&&/JAAA222/.test(v)&&/vendu le/.test(v)&&/par Marie/.test(v)&&/M-Pesa/.test(v)&&!/JAAA111/.test(v)&&/1 ticket\(s\)/.test(v),v.slice(0,300));
+ok('both sides show their counters',/Non utilisés \(5\)/.test(v)&&/Vendus \(1\)/.test(v));
+const [dl2]=await Promise.all([p.waitForEvent('download',{timeout:15000}),p.click('[data-a=freecsv]')]);
+const csv2=require('fs').readFileSync(await dl2.path(),'utf8');
+ok('sold CSV: seller and payment mode columns',/"Vendu le";"Vendeur";"Mode de paiement"/.test(csv2)&&/"JAAA222";"Jour";"application";[^;]*;"Marie";"M-Pesa"/.test(csv2)&&csv2.split('\n').length===2,csv2.slice(0,200));
+await p.fill('#uq','zzz');await p.waitForTimeout(250);
+ok('search on the sold side finds nothing for an unknown code',/Aucun ticket vendu/.test(await p.innerText('#ulist')));
+await p.fill('#uq','');await p.click('[data-a=fstat][data-v=stock]');await p.waitForTimeout(300);
+ok('back to « Non utilisés »: the sold code is gone again',!/JAAA222/.test(await p.innerText('#view'))&&/Tickets non utilisés/.test(await p.innerText('#ttl')));
+// a ticket sold disappears from the list
+await p.evaluate(()=>{const k='wifizone-v1',db=JSON.parse(localStorage.getItem(k));db.tickets.find(t=>t.code==='JAAA111').status='sold';localStorage.setItem(k,JSON.stringify(db));location.reload()});await p.waitForTimeout(1000);await pin('1234');
+await p.click('nav button[data-v=tix]');await p.waitForTimeout(300);await p.click('[data-a=tab][data-v=free]');await p.waitForTimeout(300);
+ok('a ticket that has been sold leaves the list',!/JAAA111/.test(await p.innerText('#view'))&&/4 ticket\(s\)/.test(await p.innerText('#view')));
+ok('no page errors',errs.length===0,errs.join('|'));await b.close();process.exit(f?1:0)})();

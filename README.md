@@ -11,6 +11,7 @@ Adresse : `https://madulemarcus-arch.github.io/wifizone/` (dépôt `madulemarcus
 | Onglet | Rôle |
 |---|---|
 | 🏠 Accueil | Ventes, dépenses et bénéfice (aujourd'hui, 7 jours, mois), par forfait et par mode de paiement |
+| 🎟️ Tickets | Génération de lots de codes, stock par forfait, import dans le routeur ; **« Voir les tickets non utilisés et vendus »** (gérant seulement) : deux côtés, 🟢 les codes générés par l'application et pas encore vendus, ✅ les codes déjà vendus (date, vendeur et mode de paiement de la vente), avec filtres par forfait et par destination (application / papier), recherche d'un code, copie et export CSV |
 | 🎫 Vendre | Choisir le forfait, la quantité et le mode (Cash, M-Pesa, Airtel Money…), enregistrer ; liste des ventes du jour (✕ pour corriger) |
 | 💸 Dépenses | Abonnement Starlink, électricité, salaire… en FC ou en $ (le taux du jour est figé dans chaque dépense) |
 | 🤝 Emprunts | Noter quand quelqu'un emprunte (argent, ticket / forfait, matériel…) : nom, détail, montant, date, note. **Remboursements partiels** : « + Remboursement » note ce que la personne a déjà rendu (montant, date, qui l'a noté) et affiche le **reste à rendre** ; « Tout rendu » solde le reste ; l'argent rendu est ajouté à la caisse le jour du remboursement (clôture et rapport). **Les vendeurs peuvent noter un emprunt et le marquer « Rendu »** ; seul un gérant peut le supprimer. Rappel sur l'accueil tant qu'il reste des emprunts non rendus ; synchronisé entre les appareils |
