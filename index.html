@@ -251,7 +251,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v41'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v42'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -843,17 +843,17 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     SHARED.forEach(k => { const sb = b && js(b.settings[k]), sl = js(l.settings[k]), sr = js(r.settings[k]); o.settings[k] = sl === sr ? l.settings[k] : first ? r.settings[k] : sl === sb ? r.settings[k] : l.settings[k]; });
     return o;
   };
-  let busy = false, applying = false, dirty = true, timer = null;
+  let busy = false, applying = false, dirty = true, timer = null, rev = 0; // rev counts the local changes: one made while a sync is running must not be marked as sent
   const ICONS = { off: ['☁️', 'Synchronisation non configurée'], idle: ['☁️', 'Synchronisé'], busy: ['🔄', 'Synchronisation…'], error: ['⚠️', 'Erreur de synchronisation'], offline: ['📴', 'Hors connexion'] };
   const setStatus = (stt, err = '') => { SY.status = stt; SY.error = err; const b = $('syncBtn'); if (b) { b.textContent = ICONS[stt][0]; b.title = ICONS[stt][1] + (err ? ' : ' + err : ''); b.style.opacity = stt === 'off' ? .5 : 1; } };
   SY.now = async () => {
     if (!cfg || busy) return SY.summary;
-    busy = true; setStatus('busy'); let changed = false;
+    busy = true; setStatus('busy'); let changed = false; const startRev = rev;
     try {
       if (!navigator.onLine) { const e = new Error('Pas de connexion internet'); e.offline = true; throw e; }
       for (let attempt = 0; attempt < 4; attempt++) {
         const head = await rpc('cispol_head', auth());
-        if (head.exists && !dirty && head.version === cfg.version) { SY.summary = 'Déjà à jour'; break; }
+        if (head.exists && !dirty && head.version === cfg.version && cfg.base === js(shared(db))) { SY.summary = 'Déjà à jour'; break; }
         let remote = null, version = 0;
         if (head.exists) { const r = await rpc('cispol_pull', auth()); remote = await unseal(r.blob); version = r.version; }
         const local = shared(db);
@@ -862,12 +862,12 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
           if (js(merged) !== js(local)) { applying = true; try { COLL.forEach(k => { db[k] = merged[k]; }); Object.assign(db, merged.settings); save(); } finally { applying = false; } changed = true; }
         }
         const now = shared(db);
-        if (remote && js(now) === js(remote)) { cfg.version = version; cfg.base = js(now); SY.summary = changed ? 'Données reçues' : 'Déjà à jour'; dirty = false; break; }
+        if (remote && js(now) === js(remote)) { cfg.version = version; cfg.base = js(now); SY.summary = changed ? 'Données reçues' : 'Déjà à jour'; dirty = rev !== startRev; break; }
         const res = await rpc('cispol_push', { ...auth(), p_blob: await seal(now), p_base: version });
-        if (res.ok) { cfg.version = res.version; cfg.base = js(now); dirty = false; SY.summary = changed ? 'Échangé avec les autres appareils' : 'Envoyé'; break; }
+        if (res.ok) { cfg.version = res.version; cfg.base = js(now); dirty = rev !== startRev; SY.summary = changed ? 'Échangé avec les autres appareils' : 'Envoyé'; break; }
         if (attempt === 3) throw new Error('Un autre appareil synchronise en même temps, réessayez');
       }
-      cfg.last = Date.now(); saveCfg(); setStatus('idle'); if (changed) syncProfiles();
+      cfg.last = Date.now(); saveCfg(); setStatus('idle'); if (changed) syncProfiles(); if (dirty) schedule(1500); // something was saved while this sync ran: send it right after
       if ((changed || st.tab === 'set') && !dlg.open && !lockEl.classList.contains('on')) draw();
     } catch (e) {
       setStatus(e.offline || !navigator.onLine ? 'offline' : 'error', e.forbidden ? 'phrase secrète incorrecte' : e.message); SY.summary = ICONS[SY.status][1] + (SY.error ? ' : ' + SY.error : '');
@@ -875,7 +875,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     return SY.summary;
   };
   const schedule = ms => { if (!cfg) return; clearTimeout(timer); timer = setTimeout(() => SY.now(), ms); };
-  window.__afterSave = () => { if (cfg && !applying) { dirty = true; schedule(4000); } };
+  window.__afterSave = () => { if (cfg && !applying) { dirty = true; rev++; schedule(4000); } };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) schedule(600); });
   window.addEventListener('online', () => schedule(600));
   setInterval(() => { if (cfg && !document.hidden) schedule(10); }, 30000);
