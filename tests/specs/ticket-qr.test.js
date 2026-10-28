@@ -37,11 +37,11 @@ ok('test sheet: one colour per forfait (4 different)',new Set(cols).size===4&&co
 await p.click('nav button[data-v=tix]');await p.waitForTimeout(300);await p.click('[data-a=lotprint]');await p.waitForTimeout(500);
 const lc=await p.evaluate(()=>{const d=document.createElement('div');d.innerHTML=window.__sheet;return[...new Set([...d.querySelectorAll('.tk')].map(x=>x.getAttribute('style')))]});
 ok('a lot of one forfait has a single colour matching its forfait',lc.length===1&&lc[0]===cols[1],lc.join(' | ')+' vs '+cols[1]);
-// real pagination: 40 tickets fit on one A4 page, 41 need a second one
+// real pagination: 30 tickets fit on one A4 page, 31 need a second one
 const pages=async n=>{await p.evaluate(n=>{const h=document.getElementById("planche").innerHTML;const d=document.createElement('div');d.innerHTML=h;const t=d.querySelector('.tk').outerHTML;document.getElementById('planche').innerHTML=t.repeat(n);document.body.classList.add('imprime')},n);await p.emulateMedia({media:'print'});const pdf=await p.pdf({preferCSSPageSize:true,printBackground:true});await p.emulateMedia({media:'screen'});await p.evaluate(()=>document.body.classList.remove('imprime'));return (pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length};
-ok('40 tickets = one A4 page',await pages(40)===1);
-ok('41 tickets = two pages',await pages(41)===2);
-// print rules in the stylesheet: A4 page, 4 columns, 25 mm rows
+ok('30 tickets = one A4 page',await pages(30)===1);
+ok('31 tickets = two pages',await pages(31)===2);
+// print rules in the stylesheet: A4 page, 3 columns, 25 mm rows
 const css=await p.evaluate(()=>[...document.styleSheets].flatMap(s=>[...s.cssRules]).map(r=>r.cssText).join('\n'));
-ok('print CSS: A4, 8 mm margins, 4 columns, 25 mm rows',/size: a4/i.test(css)&&/margin: 8mm/.test(css)&&/repeat\(4, 1fr\)/.test(css)&&/grid-auto-rows: 25mm/.test(css));
+ok('print CSS: A4, 8 mm margins, 3 columns, 25 mm rows',/size: a4/i.test(css)&&/margin: 8mm/.test(css)&&/repeat\(3, 1fr\)/.test(css)&&/grid-auto-rows: 25mm/.test(css));
 ok('no page errors',errs.length===0,errs.join('|'));await b.close();process.exit(f?1:0)})();
