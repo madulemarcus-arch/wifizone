@@ -114,24 +114,24 @@ dialog::backdrop{background:rgba(6,12,28,.55);backdrop-filter:blur(3px)}dialog h
 code{background:var(--bg);padding:1px 6px;border-radius:6px;font-size:.9em}
 ::selection{background:color-mix(in srgb,var(--acc) 30%,transparent)}
 @media print{header,nav,.noprint{display:none!important}body{padding:0;background:#fff}}
-/* ---------- Printed tickets: A4, 4 x 10 = 40 tickets per page, cut lines, QR code ---------- */
+/* ---------- Printed tickets: A4, 3 x 8 = 24 tickets per page, cut lines, QR code ---------- */
 @page tickets{size:A4;margin:8mm}
 @media print{body.imprime>*:not(#planche){display:none!important}body.imprime{background:#fff;color:#000;padding:0}
-body.imprime #planche{page:tickets;display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;grid-auto-rows:25mm;color:#1b2733;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body.imprime #planche{page:tickets;display:grid;grid-template-columns:repeat(3,1fr);gap:3mm;grid-auto-rows:32mm;color:#1b2733;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .tk{position:relative;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column;text-align:left;border:.3mm solid #dfe3e8;border-radius:2.5mm;background:#f7f8fa;outline:.3mm dashed #9aa5b0;outline-offset:.9mm;font-family:Inter,Arial,sans-serif}
-.tk-top{display:flex;align-items:center;gap:1.4mm;padding:.5mm 2mm;background:var(--c,#0a1f44);color:#fff}
-.tk-brand{flex:1;font-weight:800;font-size:8.6pt;line-height:1.25;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tk-price{background:#fff;color:var(--c,#0a1f44);font-weight:800;font-size:7pt;padding:.2mm 1.5mm;border-radius:10mm;white-space:nowrap}
-.tk-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:space-between;gap:1.2mm;padding:.5mm 2mm 0}
+.tk-top{display:flex;align-items:center;gap:1.4mm;padding:.8mm 2.2mm;background:var(--c,#0a1f44);color:#fff}
+.tk-brand{flex:1;font-weight:800;font-size:10pt;line-height:1.25;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-price{background:#fff;color:var(--c,#0a1f44);font-weight:800;font-size:8pt;padding:.3mm 1.6mm;border-radius:10mm;white-space:nowrap}
+.tk-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:space-between;gap:1.6mm;padding:.6mm 2.6mm 0}
 .tk-left{flex:1;min-width:0}
-.tk-lbl{font-size:6pt;font-weight:700;color:#4b5663;line-height:1.1}
-.tk-code{font:800 13.5pt ui-monospace,Menlo,Consolas,monospace;letter-spacing:.03em;color:var(--c,#d85833);margin:.2mm 0 .4mm;line-height:1.05;white-space:nowrap}
-.tk-plan{font-size:7pt;color:#2b3641;line-height:1.1;white-space:nowrap}.tk-plan b{font-weight:800}
+.tk-lbl{font-size:8pt;font-weight:700;color:#4b5663;line-height:1.1}
+.tk-code{font:800 17.5pt ui-monospace,Menlo,Consolas,monospace;letter-spacing:.03em;color:var(--c,#d85833);margin:.3mm 0 .6mm;line-height:1.05;white-space:nowrap}
+.tk-plan{font-size:9pt;color:#2b3641;line-height:1.1;white-space:nowrap}.tk-plan b{font-weight:800}
 .tk-qrw{flex:none;display:flex;flex-direction:column;align-items:center}
-.tk-qr{width:13.5mm;height:13.5mm}
-.tk-cap{font-size:4.4pt;color:#6b7683;line-height:1;margin-top:.2mm;white-space:nowrap}
-.tk-help{padding:.2mm 2mm .7mm;font-size:5.1pt;line-height:1.1;color:#6b7683;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tk-test{font-size:6pt;font-weight:800;letter-spacing:.1em;color:#d85833}}
+.tk-qr{width:18mm;height:18mm}
+.tk-cap{font-size:5.8pt;color:#6b7683;line-height:1;margin-top:.2mm;white-space:nowrap}
+.tk-help{padding:.2mm 2.6mm .9mm;font-size:6.6pt;line-height:1.1;color:#6b7683;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-test{font-size:8pt;font-weight:800;letter-spacing:.1em;color:#d85833}}
 
 /* ---------- Report by seller ---------- */
 .vbar{height:7px;border-radius:99px;background:var(--line);overflow:hidden;margin:4px 0 8px}.vbar i{display:block;height:100%;border-radius:99px;background:var(--g)}
@@ -253,7 +253,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v46'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v47'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -447,7 +447,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
     return `<svg class="tk-qr" viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" shape-rendering="crispEdges" role="img" aria-label="QR code de connexion"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
   }
 
-  // ---------- Printed tickets (A4, 40 per page, QR code opens the router login page with the code filled in) ----------
+  // ---------- Printed tickets (A4, 24 per page, QR code opens the router login page with the code filled in) ----------
   // The router stores codes as printed by the .rsc file; the QR carries the code in lowercase and the login page lowercases whatever is typed.
   const loginHost = () => String(db.loginHost ?? 'wifi.cispolstore').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   const loginUrl = code => `http://${loginHost()}/login?username=${encodeURIComponent(String(code).toLowerCase())}`;
