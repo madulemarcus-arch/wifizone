@@ -17,7 +17,7 @@ ok('print called once with the sheet shown',r.prints===1&&r.printing===true,JSON
 ok('40 tickets, each with a QR code',r.n===40&&r.qr===40,r.n+'/'+r.qr);
 ok('codes printed in capitals and match the lot',r.codes.every((c,i)=>c===c.toUpperCase()&&r.lot.includes(c)),r.codes.slice(0,2).join(','));
 ok('QR is different for each ticket',new Set(r.paths).size===40&&r.paths.every(x=>x.length>200));
-ok('ticket shows plan, duration, price and Wi-Fi name',/Visiteur|Jour|Semaine|Mois/.test(r.text)&&/FC/.test(r.text)&&/CISPOLstore Zone/.test(r.text),r.text);
+ok('ticket shows the Wi-Fi name in the header, « Code d\'accès », the duration, the price, the QR caption and the help line',/CISPOLstore Zone/i.test(r.text)&&/Code d'accès/.test(r.text)&&/Durée : (6 heures|24 heures|7 jours|30 jours)/.test(r.text)&&/FC/.test(r.text)&&/Scanner pour se connecter/.test(r.text)&&/Connectez-vous au WiFi et entrez le code/.test(r.text),r.text);
 // URL carried by the QR: lowercase code
 const u=await p.evaluate(()=>{const db=JSON.parse(localStorage.getItem('wifizone-v1'));return null});
 // empty address = no QR
