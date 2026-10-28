@@ -253,7 +253,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v44'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v45'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -454,7 +454,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   // one colour per forfait on the printed ticket (fixed hex, not theme variables: paper is always white); same order as the app's badges
   const TKCOL = ['#1f8a3b', '#1f6feb', '#d9600b', '#7b2cbf'], tkcol = f => TKCOL[f.id in FBYID ? FBYID[f.id] : Math.max(0, db.forfaits.indexOf(f)) % 4];
   // same look as the reference ticket: coloured header with the Wi-Fi name, « Code d'accès », big code in the forfait colour, duration, QR with its caption, one-line help
-  const ticketHtml = (code, f, test) => `<div class="tk" style="--c:${tkcol(f)}"><div class="tk-top"><span class="tk-brand">${esc(db.ssid || db.name)}</span><span class="tk-price">${fmt(f.prix)}</span></div>
+  const ticketHtml = (code, f, test) => `<div class="tk" style="--c:${tkcol(f)}"><div class="tk-top"><span class="tk-brand">${esc(db.ssid || db.name)}</span><span class="tk-price">${esc(f.nom)} · ${fmt(f.prix)}</span></div>
     <div class="tk-main"><div class="tk-left"><div class="tk-lbl">Code d'accès :${test ? ' <span class="tk-test">ESSAI</span>' : ''}</div><div class="tk-code">${esc(String(code).toUpperCase())}</div><div class="tk-plan">Durée : <b>${esc(f.duree)}</b></div></div>${loginHost() ? `<div class="tk-qrw">${qrSvg(loginUrl(code))}<span class="tk-cap">Scanner pour se connecter</span></div>` : ''}</div>
     <div class="tk-help">Connectez-vous au WiFi et entrez le code</div></div>`;
   const printTickets = async (items, test) => {
