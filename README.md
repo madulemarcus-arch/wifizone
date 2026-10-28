@@ -77,6 +77,14 @@ Réglages → **Synchronisation entre téléphones** → Configurer (ou le bouto
 - Synchronisation automatique 4 secondes après chaque modification, au retour dans l'application, au retour de la connexion et toutes les 30 secondes ; bouton « Synchroniser maintenant ». Le bouton ☁️ indique l'état (☁️ à jour, 🔄 en cours, 📴 hors connexion, ⚠️ erreur).
 - Déconnecter garde toutes les données sur le téléphone.
 
+## Plusieurs sites : synthèse des deux sites
+
+Chaque site garde **ses propres données** : un **nom d'espace** et une **phrase secrète** différents dans « Synchronisation entre téléphones » (même serveur Supabase, aucun nouveau script SQL). Pour les voir ensemble : Réglages → **Plusieurs sites** → **📊 Synthèse des sites** → **🔗 Relier l'autre site** (nom d'espace et phrase secrète du deuxième site).
+
+- **Lecture seule** : l'application lit les données chiffrées de l'autre site, les déchiffre sur le téléphone et n'y envoie **rien** (aucune vente, dépense ni réglage n'est modifié). Le lien est propre au téléphone (non synchronisé) et se retire avec **Retirer l'autre site**.
+- **Écran** : puces *Aujourd'hui / 7 jours / Ce mois*, total des deux sites (ventes, tickets, dépenses, bénéfice et son équivalent en $), puis une carte par site (ventes, dépenses, bénéfice, emprunts pris et rendus, reste après emprunts, emprunts à récupérer, tickets en stock). **Actualiser**, **📋 Copier** et **💬 WhatsApp** pour envoyer la synthèse.
+- Les montants sont en FC ; les dollars sont convertis au taux de chaque site. Le lien nécessite que la synchronisation de **ce** site soit déjà configurée (on réutilise son URL et sa clé). Réservé aux gérants.
+
 ## Thèmes (clair / sombre)
 
 Réglages → **Apparence** : **🌓 Auto** (suit le téléphone), **☀️ Clair**, **🌙 Sombre** ou **⚫ Noir** (fond noir pur, économise la batterie sur écran OLED). Le choix est **propre à chaque appareil** (il n'est pas synchronisé) et reste après la fermeture de l'application.

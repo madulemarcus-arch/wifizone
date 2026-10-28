@@ -251,7 +251,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
 // WiFi Zone Manager: single-file PWA (sales of tickets, expenses, daily closing, reports). Data stays in this browser (localStorage).
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v42'; // VERSION must match CACHE in sw.js
+  const $ = id => document.getElementById(id), KEY = 'wifizone-v1', VERSION = 'v43'; // VERSION must match CACHE in sw.js
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = n => String(n).padStart(2, '0');
   const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -279,7 +279,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   const usdOf = cdf => cdf / db.rate;
   const both = cdf => `${fmt(cdf)} <small>≈ ${fmt(usdOf(cdf), 'USD')}</small>`;
 
-  const st = { tab: 'home', src: 'app', sper: 'day', sq: '', tfid: 'J', tn: 50, per: 'day', vper: 'month', lf: 'open', us: 'stock', ud: 'all', uff: 'all', uq: '', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7) };
+  const st = { tab: 'home', src: 'app', sper: 'day', sq: '', tfid: 'J', tn: 50, per: 'day', vper: 'month', lf: 'open', us: 'stock', ud: 'all', uff: 'all', uq: '', fid: '', qty: 1, mode: 'Cash', cd: today(), rm: today().slice(0, 7), mper: 'day' };
   const range = per => { const t = today(); if (per === 'day') return [t, t]; if (per === 'week') return [addDays(t, -6), t]; return [t.slice(0, 7) + '-01', t]; };
   const inR = (d, r) => d >= r[0] && d <= r[1];
   const saleCDF = s => s.amount, expCDF = e => toCDF(e.amount, e.cur, e.rate);
@@ -668,6 +668,42 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       <button class="btn sec full noprint" data-a="tab" data-v="vend" style="margin:0 0 12px">👥 Rapport par vendeur</button>
       <div class="bar noprint"><button class="btn" data-a="mwa">💬 WhatsApp</button><button class="btn sec" data-a="csv">⬇ CSV</button><button class="btn sec" data-a="print">🖨️ Imprimer</button></div>` };
   };
+  // ---------- Summary of the two sites ----------
+  // figures of one site over a period; src = { name, rate, sales, expenses, loans, tickets } (this site's db, or the data read from the other site)
+  const siteStats = (src, r) => {
+    const S = (src.sales || []).filter(x => inR(x.date, r)), E = (src.expenses || []).filter(x => inR(x.date, r)), rate = src.rate || db.rate;
+    const LN = (src.loans || []).filter(l => l.kind === 'argent' && l.amount > 0), L1 = LN.filter(l => inR(l.date, r)), L2 = LN.filter(l => loanPays(l).some(q => inR(q.date, r)));
+    const cdf = (n, cur, rt) => cur === 'USD' ? n * (rt || rate) : n;
+    const inc = sum(S, saleCDF), out = sum(E, e => cdf(e.amount, e.cur, e.rate)), lent = sum(L1, l => cdf(l.amount, l.cur, l.rate)), back = sum(L2, l => sum(loanPays(l).filter(q => inR(q.date, r)), q => cdf(q.amount, l.cur, l.rate)));
+    const owed = sum((src.loans || []).filter(l => l.status !== 'back' && l.amount > 0), l => cdf(loanLeft(l), l.cur, l.rate));
+    return { name: src.name || 'WiFi Zone', n: S.length, tickets: sum(S, x => x.qty), inc, out, net: inc - out, lent, back, left: inc - out - lent + back, owed, stock: (src.tickets || []).filter(t => t.status === 'stock').length };
+  };
+  const SPER = [['day', "Aujourd'hui"], ['week', '7 jours'], ['month', 'Ce mois']];
+  const sitesText = (a, b, per) => { const T = SPER.find(x => x[0] === per)[1], one = x => [`📍 ${x.name}`, `🎫 ${x.tickets} ticket(s) : ${fmt(x.inc)}`, `💸 Dépenses : ${fmt(x.out)}`, `✅ Bénéfice : ${fmt(x.net)}`, ...(x.lent || x.back ? [`💰 Reste après emprunts : ${fmt(x.left)}`] : [])];
+    return ['🌐 Synthèse des deux sites — ' + T, '', ...one(a), '', ...one(b), '', `➕ Total : ${a.tickets + b.tickets} ticket(s) · ventes ${fmt(a.inc + b.inc)} · dépenses ${fmt(a.out + b.out)} · bénéfice ${fmt(a.net + b.net)} (≈ ${fmt(usdOf(a.net + b.net), 'USD')})`].join('\n'); };
+  const siteCard = (x, mine) => `<div class="card"><div class="row"><div class="g"><b>${mine ? '📍' : '🛰️'} ${esc(x.name)}</b><small>${mine ? 'Ce site' : 'Autre site'} · ${x.n} vente(s) · ${x.tickets} ticket(s)</small></div><b>${fmt(x.inc)}</b></div>
+      <div class="row"><div class="g">Dépenses</div><b class="bad">${fmt(x.out)}</b></div>
+      <div class="row"><div class="g"><b>Bénéfice</b></div><b class="${x.net >= 0 ? 'ok' : 'bad'}">${fmt(x.net)}</b></div>
+      ${x.lent || x.back ? `<div class="row"><div class="g">Emprunts pris à la caisse<small>${x.back ? 'dont rendus : ' + fmt(x.back) : 'rien de rendu'}</small></div><b>${fmt(x.lent)}</b></div><div class="row keeprow"><div class="g"><b>Reste après emprunts</b></div><b class="keep">${fmt(x.left)}</b></div>` : ''}
+      ${x.owed > 0 ? `<div class="row"><div class="g">Emprunts à récupérer (au total)</div><b class="warn">${fmt(x.owed)}</b></div>` : ''}
+      <div class="row"><div class="g">Tickets en stock</div><b>${x.stock}</b></div></div>`;
+  views.sites = () => {
+    if (ocfg && !OS.busy && Date.now() - OS.tried > 60000) setTimeout(() => OS.load(), 0);
+    const r = range(st.mper), A1 = siteStats(db, r), B1 = OS.data ? siteStats({ name: OS.data.settings.name, rate: OS.data.settings.rate, sales: OS.data.sales, expenses: OS.data.expenses, loans: OS.data.loans, tickets: OS.data.tickets }, r) : null;
+    const when = ocfg && ocfg.last ? new Date(ocfg.last).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : 'jamais';
+    const head = `<button class="btn sec sm noprint" data-a="tab" data-v="set" style="margin-bottom:10px">‹ Réglages</button>`;
+    if (!ocfg) return { title: 'Synthèse des sites', sub: db.name, html: `${head}<div class="card"><b>Voir les deux sites ensemble</b><p class="mut">Le deuxième site garde ses propres données (son nom d'espace et sa phrase secrète). Ici, l'application <b>lit seulement</b> ses chiffres pour les comparer aux vôtres : rien n'est envoyé ni modifié sur l'autre site.</p>
+      <p class="mut">Il vous faut le <b>nom d'espace</b> et la <b>phrase secrète</b> du deuxième site (ceux saisis dans « Synchronisation entre téléphones » sur ses téléphones).</p>
+      <button class="btn full" data-a="sitesetup" ${cfg ? '' : 'disabled'}>🔗 Relier l'autre site</button>${cfg ? '' : '<p class="warn">Configurez d\'abord la synchronisation de ce site (Réglages).</p>'}</div>` };
+    const tot = B1 ? { inc: A1.inc + B1.inc, out: A1.out + B1.out, net: A1.net + B1.net, tickets: A1.tickets + B1.tickets } : null;
+    return { title: 'Synthèse des sites', sub: SPER.find(x => x[0] === st.mper)[1], html: `${head}${chips('mper', st.mper, SPER)}
+      ${tot ? `<section class="hero"><small>🌐 Les deux sites · ${SPER.find(x => x[0] === st.mper)[1]}</small><div class="hero-num" data-count="${tot.inc}">${fmt(tot.inc)}</div><small>${tot.tickets} ticket(s) vendu(s)</small>
+        <div class="hstats"><div class="bad"><b>${fmt(tot.out)}</b><small>dépenses</small></div><div class="${tot.net >= 0 ? 'ok' : 'bad'}"><b>${fmt(tot.net)}</b><small>bénéfice · ≈ ${fmt(usdOf(tot.net), 'USD')}</small></div></div></section>` : `<div class="card">${OS.busy ? '🔄 Lecture de l\'autre site…' : OS.error ? '<b class="warn">⚠ ' + esc(OS.error) + '</b>' : 'Pas encore de données.'}</div>`}
+      ${siteCard(A1, true)}${B1 ? siteCard(B1, false) : ''}
+      <p class="mut" style="font-size:13px">Autre site « ${esc(ocfg.ws)} » · lu ${OS.busy ? 'en cours…' : 'le ' + when}${OS.error && B1 ? ' · <span class="warn">dernière lecture en erreur : ' + esc(OS.error) + '</span>' : ''}. Montants en FC (les dollars sont convertis au taux de chaque site).</p>
+      <div class="bar noprint"><button class="btn" data-a="siterefresh">🔄 Actualiser</button>${B1 ? '<button class="btn sec" data-a="sitescopy">📋 Copier</button><button class="btn sec" data-a="siteswa">💬 WhatsApp</button>' : ''}</div>
+      <div class="bar noprint"><button class="btn sec sm" data-a="sitesetup">Modifier</button><button class="btn del sm" data-a="sitesoff">Retirer l'autre site</button></div>` };
+  };
   const setHero = () => { const lb = db.lastBackup ? Math.floor((Date.now() - db.lastBackup) / 864e5) : null, sy = SY && SY.status !== 'off', can = a => canAct(a);
     const b = (cls, ico, txt, act) => `<${act && can(act) ? `button data-a="${act}"` : 'span'} class="sbadge ${cls}"><i>${ico}</i>${txt}</${act && can(act) ? 'button' : 'span'}>`;
     return `<section class="hero"><div class="shead"><img src="logo.svg" alt=""><div><h2>${esc(db.name)}</h2><small>${me ? esc(me.name) + ' · ' + esc(ROLES[me.role] || '') + ' · ' : ''}version ${VERSION}</small></div></div>
@@ -688,6 +724,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       <button class="btn full" data-a="impcsv">⬆ Choisir le fichier CSV</button><input type="file" id="ifile" accept=".csv,text/csv" hidden></div>
     ${profilesCard()}
     ${syncCard()}
+    <h2>Plusieurs sites</h2><div class="card"><p class="mut" style="margin-top:0">${ocfg ? `Autre site relié : <b>${esc(ocfg.ws)}</b> (lecture seule).` : 'Reliez le deuxième site pour voir les deux ensemble.'}</p><button class="btn full" data-a="tab" data-v="sites">📊 Synthèse des sites</button></div>
     <h2>Apparence</h2><div class="card">${chips('theme', curTheme(), [['auto', '🌓 Auto'], ['light', '☀️ Clair'], ['dark', '🌙 Sombre'], ['noir', '⚫ Noir']])}<h3 style="margin:14px 0 6px;font-size:14px">✨ Animation de l'accueil</h3>${chips('anim', animLevel(), [['off', 'Aucune'], ['calm', 'Calme'], ['balanced', 'Équilibrée'], ['intense', 'Intense']])}<p class="mut" style="margin:6px 0 0">Étoiles, comètes et ondes Wi-Fi derrière le tableau de bord et dans la carte des ventes. S'arrête toute seule sur les autres écrans, quand l'application est en arrière-plan ou si l'appareil demande moins d'animations. Choix propre à cet appareil.</p><p class="mut" style="margin-bottom:0">Choix propre à cet appareil. « Auto » suit le réglage du téléphone ; « Noir » économise la batterie sur écran OLED.</p></div>
     <h2>Sécurité</h2><div class="card"><div class="row"><div class="g"><b>Code PIN</b><small>${db.pin ? 'Activé : demandé à l\'ouverture' : 'Désactivé : tout le monde peut ouvrir l\'application'}</small></div></div>
       ${db.pin ? `<label>Verrouiller après</label><select id="s_lock"><option value="0" ${db.lockMin === 0 ? 'selected' : ''}>Dès que je quitte l'application</option><option value="2" ${db.lockMin === 2 ? 'selected' : ''}>2 minutes</option><option value="10" ${db.lockMin === 10 ? 'selected' : ''}>10 minutes</option></select>` : ''}
@@ -788,7 +825,7 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   const draw = () => {
     if (!canView(st.tab)) st.tab = 'sell';
     const v = views[st.tab](); $('ttl').textContent = v.title; $('sub').textContent = (v.sub || '') + (me ? ' · 👤 ' + me.name : ''); { const lb = $('lockBtn'); if (lb) lb.style.display = (db.pin || profilesOn()) ? 'grid' : 'none'; } $('view').innerHTML = v.html;
-    $('nav').innerHTML = NAV.filter(([k]) => canView(k)).map(([k, i, t]) => `<button class="${(st.tab === 'sales' || st.tab === 'vend' ? 'rep' : st.tab === 'free' ? 'tix' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
+    $('nav').innerHTML = NAV.filter(([k]) => canView(k)).map(([k, i, t]) => `<button class="${(st.tab === 'sales' || st.tab === 'vend' ? 'rep' : st.tab === 'free' ? 'tix' : st.tab === 'sites' ? 'set' : st.tab) === k ? 'on' : ''}" data-a="tab" data-v="${k}"><b>${i}</b>${t}</button>`).join('');
     $('nav').insertAdjacentHTML('afterbegin', `<div class="nav-brand"><i></i>${esc(db.name)}</div>`); $('nav').insertAdjacentHTML('beforeend', '<button class="nav-keys" data-a="keys"><b>⌨</b>Raccourcis <kbd>?</kbd></button>');
     $('view').dataset.v = st.tab; if (st.tab === 'home') { const m = $('view'); [...m.querySelectorAll(':scope > h2')].forEach(h => { const n = h.nextElementSibling; if (!n) return; const w = document.createElement('section'); w.className = 'blk'; h.before(w); w.append(h, n); }); }
     if ($('uq')) $('uq').oninput = () => { st.uq = $('uq').value; const l = freeList(); $('ulist').innerHTML = freeRows(l); $('ucnt').textContent = l.length + ' ticket(s)'; };
@@ -815,10 +852,10 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   };
   const aes = k => crypto.subtle.importKey('raw', fromB64(k), 'AES-GCM', false, ['encrypt', 'decrypt']);
   const seal = async obj => { const iv = crypto.getRandomValues(new Uint8Array(12)), ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aes(cfg.key), te.encode(js(obj)))); const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12); return toB64(out); };
-  const unseal = async blob => { const u = fromB64(blob); return JSON.parse(td.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, await aes(cfg.key), u.slice(12)))); };
-  const rpc = async (fn, body) => {
-    const h = { 'Content-Type': 'application/json', apikey: cfg.anon }; if (cfg.anon.startsWith('eyJ')) h.Authorization = 'Bearer ' + cfg.anon;
-    const r = await fetch(cfg.url + '/rest/v1/rpc/' + fn, { method: 'POST', headers: h, body: js(body) });
+  const unseal = async (blob, c = cfg) => { const u = fromB64(blob); return JSON.parse(td.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, await aes(c.key), u.slice(12)))); };
+  const rpc = async (fn, body, c = cfg) => {
+    const h = { 'Content-Type': 'application/json', apikey: c.anon }; if (c.anon.startsWith('eyJ')) h.Authorization = 'Bearer ' + c.anon;
+    const r = await fetch(c.url + '/rest/v1/rpc/' + fn, { method: 'POST', headers: h, body: js(body) });
     const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch (e) {}
     if (!r.ok) { const m = (j && (j.message || j.hint)) || t.slice(0, 160) || ('HTTP ' + r.status); const e = new Error(m); e.forbidden = /forbidden/.test(m); e.missing = r.status === 404; throw e; }
     return j;
@@ -889,6 +926,34 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
   };
   SY.disconnect = () => { cfg = null; try { localStorage.removeItem(CKEY); } catch (e) {} setStatus('off'); SY.summary = ''; };
   window.__sync = SY;
+  // ---------- Second site: read-only summary ----------
+  // The second site is another workspace on the same Supabase project (its own name and passphrase). It is only READ here: nothing is ever sent to it,
+  // so the two sites' sales, expenses and cash stay separate; this screen just puts their figures side by side.
+  const OKEY = 'wifizone-site2';
+  let ocfg = null; try { ocfg = JSON.parse(localStorage.getItem(OKEY)); } catch (e) {}
+  const OS = { data: null, at: 0, tried: 0, busy: false, error: '' };
+  OS.load = async force => {
+    if (!ocfg || OS.busy) return; OS.busy = true; OS.tried = Date.now(); OS.error = ''; if (st.tab === 'sites') draw();
+    try {
+      if (!navigator.onLine) throw new Error('Pas de connexion internet');
+      const a = { p_ws: ocfg.ws, p_token: ocfg.token }, head = await rpc('cispol_head', a, ocfg);
+      if (!head.exists) throw new Error("Cet espace n'a encore reçu aucune donnée");
+      const r = await rpc('cispol_pull', a, ocfg); OS.data = await unseal(r.blob, ocfg); OS.at = Date.now(); ocfg.last = OS.at; try { localStorage.setItem(OKEY, js(ocfg)); } catch (e) {}
+    } catch (e) { OS.error = e.forbidden ? 'phrase secrète incorrecte' : e.missing ? "le script SQL n'a pas été exécuté dans Supabase" : e.message === 'Failed to fetch' ? 'Pas de connexion' : e.message; }
+    finally { OS.busy = false; if (st.tab === 'sites') draw(); }
+  };
+  OS.connect = async ({ ws, pass }) => {
+    if (!cfg) throw new Error("Configurez d'abord la synchronisation de ce site (Réglages)");
+    ws = ws.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, ''); if (!ws) throw new Error("Nom d'espace invalide");
+    if (ws === cfg.ws) throw new Error("C'est l'espace de ce site : saisissez celui de l'autre site");
+    if (pass.length < 8) throw new Error('La phrase secrète doit contenir au moins 8 caractères');
+    const keys = await derive(ws, pass), c = { url: cfg.url, anon: cfg.anon, ws, key: keys.key, token: keys.token, last: 0 };
+    let head; try { head = await rpc('cispol_head', { p_ws: ws, p_token: c.token }, c); } catch (e) { throw new Error(e.forbidden ? 'Phrase secrète incorrecte pour cet espace' : e.missing ? "Le script SQL n'a pas été exécuté dans Supabase" : e.message === 'Failed to fetch' ? "Impossible de joindre l'adresse Supabase" : e.message); }
+    if (!head.exists) throw new Error("Aucun espace « " + ws + " » : vérifiez le nom (celui du deuxième site, déjà synchronisé au moins une fois)");
+    ocfg = c; try { localStorage.setItem(OKEY, js(ocfg)); } catch (e) {} OS.data = null; OS.at = 0; OS.tried = 0; return OS.load(true);
+  };
+  OS.disconnect = () => { ocfg = null; OS.data = null; OS.at = 0; OS.error = ''; try { localStorage.removeItem(OKEY); } catch (e) {} };
+  window.__sites = OS;
   const syncCard = () => {
     const when = cfg && cfg.last ? new Date(cfg.last).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : 'jamais';
     const stt = { off: 'Non configurée', idle: 'Active', busy: 'En cours…', error: 'Erreur', offline: 'Hors connexion' }[SY.status], cls = { idle: 'ok', error: 'bad', offline: 'warn' }[SY.status] || '';
@@ -1162,6 +1227,17 @@ button.sbadge{cursor:pointer}.sbadge i{font-style:normal;width:22px;height:22px;
       if (inRouter) download(`supprimer-lot-${f.nom}-${l.id}.rsc`, ['# Suppression du lot ' + l.id + ' - ' + f.nom + ' - ' + tk.length + ' tickets', ...tk.map(t => `/ip hotspot user remove [find where name=${t.code}]`)].join('\n') + '\n', 'text/plain;charset=utf-8');
       db.tickets = db.tickets.filter(t => t.lot !== l.id); db.lots = db.lots.filter(x => x !== l); save(); draw(); toast(inRouter ? 'Lot supprimé : importez le fichier de nettoyage dans le routeur' : 'Lot supprimé'); },
     lotcsv: v => { const l = db.lots.find(x => x.id === v), f = l && db.forfaits.find(x => x.id === l.fid); if (f) download(`tickets-${f.nom}-${l.id}.csv`, '\ufeff' + ['Code;Forfait;Prix FC;Statut', ...lotCodes(l.id).map(t => `${t.code};${f.nom};${f.prix};${t.status === 'sold' ? 'Vendu' : 'En stock'}`)].join('\n'), 'text/csv'); },
+    mper: v => { st.mper = v; draw(); },
+    siterefresh: async () => { await OS.load(true); toast(OS.error ? 'Erreur : ' + OS.error : 'Autre site actualisé'); },
+    sitescopy: () => { if (!OS.data) return; const t = sitesText(siteStats(db, range(st.mper)), siteStats({ name: OS.data.settings.name, rate: OS.data.settings.rate, sales: OS.data.sales, expenses: OS.data.expenses, loans: OS.data.loans, tickets: OS.data.tickets }, range(st.mper)), st.mper); try { navigator.clipboard.writeText(t); toast('Synthèse copiée'); } catch (e) { toast('Copie impossible'); } },
+    siteswa: () => { if (!OS.data) return; const t = sitesText(siteStats(db, range(st.mper)), siteStats({ name: OS.data.settings.name, rate: OS.data.settings.rate, sales: OS.data.sales, expenses: OS.data.expenses, loans: OS.data.loans, tickets: OS.data.tickets }, range(st.mper)), st.mper); window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); },
+    sitesoff: () => { if (confirm("Retirer l'autre site ? Ses données ne sont pas touchées, vous ne le verrez simplement plus ici.")) { OS.disconnect(); draw(); } },
+    sitesetup: () => modal("Relier l'autre site", `<div class="card" style="font-size:14px">L'application lit les chiffres de l'autre site <b>sans rien y modifier</b>. Utilisez le <b>nom d'espace</b> et la <b>phrase secrète</b> de ses téléphones (même serveur Supabase que ce site).</div>
+        <label>Nom de l'espace de l'autre site</label><input id="o_ws" value="${esc(ocfg ? ocfg.ws : '')}" placeholder="ex. wifizone-site2" autocapitalize="none" autocomplete="off">
+        <label>Phrase secrète de l'autre site</label><input id="o_pass" type="password" autocomplete="off"><p id="o_msg" class="warn"></p>`, () => {
+        const msg = $('o_msg'), btn = $('dok'); msg.textContent = ''; btn.disabled = true; btn.textContent = 'Connexion…';
+        OS.connect({ ws: $('o_ws').value, pass: $('o_pass').value }).then(() => { dlg.close(); toast('Autre site relié'); A.tab('sites'); }).catch(e => { msg.textContent = e.message; btn.disabled = false; btn.textContent = 'Relier'; });
+        return false; }, 'Relier'),
     syncnow: async () => { toast('Synchronisation…'); toast(await SY.now()); },
     syncoff: () => { if (confirm('Déconnecter la synchronisation ? Les données restent sur ce téléphone.')) { SY.disconnect(); draw(); } },
     syncsql: () => { fetch('sync/supabase.sql').then(r => r.text()).then(t => { try { navigator.clipboard.writeText(t); toast('Script SQL copié'); } catch (e) { toast('Copie impossible'); } }).catch(() => toast('Script indisponible')); },
